@@ -104,26 +104,27 @@ if api_key:
                         )
                     )
                     
-                    if result.generated_images:
+        if result.generated_images:
                         img_data = result.generated_images[0].image.image_bytes
                         image = Image.open(io.BytesIO(img_data))
                         
-                        ### 🚀 新增：存入畫廊 🚀 ###
-                        st.session_state.gallery.append({"image": image, "prompt": final_image_prompt})
-                        ##########################
+                        # 🚀 存入畫廊，同時儲存 bytes 數據供下載使用 🚀
+                        st.session_state.gallery.append({
+                            "image": image, 
+                            "image_bytes": img_data, # 這裡多存一份原始數據
+                            "prompt": final_image_prompt
+                        })
 
                         st.image(image, caption="具現化完成！", use_container_width=True)
                         
-                        ### 🚀 新增：下載按鈕 🚀 ###
+                        # 🚀 下載按鈕直接使用儲存好的 bytes 🚀
                         st.download_button(
                             label="⬇️ 下載這張作品",
                             data=img_data,
                             file_name=f"mind-canvas-{len(st.session_state.gallery)}.jpg",
-                            mime="image/jpeg"
+                            mime="image/jpeg",
+                            key=f"btn_{len(st.session_state.gallery)}" # 確保 key 唯一
                         )
-                        ##########################
-                        
-                        st.success(f"🎨 魔法咒語：\n{final_image_prompt}")
                         
                 except Exception as e:
                     st.error(f"出圖過程中發生錯誤：{e}")
