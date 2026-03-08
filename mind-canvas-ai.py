@@ -104,7 +104,7 @@ if api_key:
                         )
                     )
                     
-        if result.generated_images:
+    if result.generated_images:
                         img_data = result.generated_images[0].image.image_bytes
                         image = Image.open(io.BytesIO(img_data))
                         
