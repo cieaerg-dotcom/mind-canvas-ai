@@ -1,3 +1,5 @@
-google-genai
 streamlit
+google-genai
 Pillow
+streamlit-drawable-canvas
+numpy
