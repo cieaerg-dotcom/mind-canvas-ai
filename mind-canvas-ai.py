@@ -52,6 +52,10 @@ if "gallery" not in st.session_state: st.session_state.gallery = []
 if "canvas_reset_counter" not in st.session_state: st.session_state.canvas_reset_counter = 0
 if "ai_sketch_img" not in st.session_state: st.session_state.ai_sketch_img = None
 
+# 🚀 為了讓下方的工具列能影響上方的畫板，預先定義 session_state
+if "tool_choice" not in st.session_state: st.session_state.tool_choice = "pencil"
+if "stroke_width" not in st.session_state: st.session_state.stroke_width = 3
+
 # ==========================================
 # 2. 側邊欄：設定、上傳與畫廊
 # ==========================================
@@ -64,13 +68,12 @@ with st.sidebar:
     st.header("📂 參考圖上傳")
     uploaded_ref = st.file_uploader("上傳你的靈感參考圖", type=["png", "jpg", "jpeg"])
 
-    # 🚀 移除：畫板工具已經移動到塗鴉板下方了
+    # 🚀 要求 3：移除了側邊欄的「畫板工具」
+    # 🚀 要求 4：移除了「完全清除畫板」按鈕
 
     st.divider()
     st.header("🚀 繪師動作")
-    # 🚀 新增功能：浮水印控制開關
-    enable_watermark = st.checkbox("🏷️ 在成品加上浮水印", value=True)
-    draw_sketch_btn = st.button("🖌️ 請繪師畫草圖", use_container_width=True)
+    # 🚀 要求 2：移除了側邊欄的「請繪師畫草圖」按鈕
     generate_btn = st.button("✨ 最終具現化 (Imagen 4)", type="primary", use_container_width=True)
 
     if st.session_state.gallery:
@@ -104,7 +107,7 @@ with col_chat:
             1. **平等協作**：不要像老師一樣下指令。改用「我覺得...」、「我們試試看...」或「如果你覺得不錯的話，我們或許可以...」這類的口吻。
             2. **主動貢獻靈感**：當搭檔提出一個想法，你除了肯定之外，要主動疊加一個專業繪師的見解。
             3. **視覺專家的直覺**：自然地提到構圖或光影的建議，就像兩個高手在討論。
-            4. **節奏掌控**：每次回覆只拋出一個點子來討論。當聊到一個段落，建議：「這構思不錯喔，我先幫你勾個大概的構圖給你看，你再告訴我哪裡要修？」
+            4. **節奏掌控**：每次回覆只拋出一個點子來討論。當聊到一個段落，建議：「這構思不錯喔，我先幫你勾個大概的構圖（SVG）給你看，你再告訴我哪裡要修？」
             5. **共同守護**：在按下出圖按鈕前，確保雙方都對這個「共同結晶」感到興奮。
             """
             st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。我正在看空白畫布，你有什麼好點子嗎？不管是哪種模糊的感覺都可以，我們一起來把那個場景生出來！"}]
@@ -117,6 +120,9 @@ with col_chat:
             s_cols[i].caption(f"**{k}**")
             s_cols[i].write(f"`{v}`")
 
+        # 🚀 要求 2：「請繪師畫草圖」按鈕移到會師的草圖下方
+        draw_sketch_btn = st.button("🖌️ 請繪師畫草圖", use_container_width=True)
+
         chat_placeholder = st.container(height=450)
         with chat_placeholder:
             for msg in st.session_state.messages:
@@ -126,43 +132,33 @@ with col_chat:
 
 with col_canvas:
     st.markdown("#### 👨‍🎨 協作畫板 (400x400 正方形)")
+    bg_img_url = get_image_base64(st.session_state.ai_sketch_img)
     
-    # 🚀 技巧：預留畫板的空間，確保畫板能在工具列上方顯示，但又能讀取到下方工具列的值
-    canvas_container = st.container()
+    # 🚀 要求 1：處理橡皮擦變白筆的邏輯 (動態讀取下方工具列設定)
+    actual_stroke_color = "#000000" if st.session_state.tool_choice == "pencil" else "#ffffff"
+    actual_stroke_width = st.session_state.stroke_width if st.session_state.tool_choice == "pencil" else st.session_state.stroke_width + 10
     
-    # 🚀 下移的畫板工具
-    st.markdown("---")
-    st.markdown("#### 🛠️ 畫板工具")
-    t_cols = st.columns(2)
-    with t_cols[0]:
-        # 防止報錯，將底層橡皮擦邏輯改為「白筆」
-        tool_choice = st.radio("畫筆模式：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", horizontal=True)
-    with t_cols[1]:
-        stroke_width = st.slider("筆觸粗細：", 1, 20, 3)
-        
-    if st.button("🗑️ 完全清除畫板", use_container_width=True):
-        st.session_state.ai_sketch_img = None
-        st.session_state.canvas_reset_counter += 1
-        st.rerun()
-
-    # 計算真正的筆觸參數
-    actual_stroke_color = "#000000" if tool_choice == "pencil" else "#ffffff"
-    actual_stroke_width = stroke_width if tool_choice == "pencil" else stroke_width + 10
-
-    # 填入剛才預留的畫板空間
-    with canvas_container:
-        bg_img_url = get_image_base64(st.session_state.ai_sketch_img)
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",
-            stroke_width=actual_stroke_width, 
-            stroke_color=actual_stroke_color,
-            background_image=bg_img_url, 
-            background_color="#ffffff", # 白色背景配合橡皮擦運作
-            update_streamlit=True,
-            height=400, width=400, 
-            drawing_mode="freedraw", # 強制鎖定在自由塗鴉，避免組件崩潰
-            key=f"main_canvas_{st.session_state.canvas_reset_counter}",
-        )
+    # 🚀 要求 1：套用修改後的塗鴉板參數
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",
+        stroke_width=actual_stroke_width, 
+        stroke_color=actual_stroke_color,
+        background_image=bg_img_url, 
+        update_streamlit=True,
+        height=400, width=400, 
+        drawing_mode="freedraw", # 永遠保持自由畫筆模式
+        key=f"main_canvas_{st.session_state.canvas_reset_counter}",
+    )
+    
+    st.divider()
+    
+    # 🚀 要求 3：將側邊欄的畫板工具移動到塗鴉版下方
+    col_tools1, col_tools2 = st.columns([1, 2])
+    with col_tools1:
+        # 使用 key 綁定 session_state，讓上方的畫板能讀取到狀態
+        st.radio("畫筆模式：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice")
+    with col_tools2:
+        st.slider("筆觸粗細：", 1, 20, 3, key="stroke_width")
 
 # ==========================================
 # 4. 邏輯處理
@@ -223,42 +219,22 @@ if api_key:
     if generate_btn:
         with st.spinner("✨ Imagen 4 具現化中..."):
             try:
-                # 🚀 新增功能：動態計算 Imagen 4 的長寬比
-                if device_type == "手機":
-                    target_ratio = "9:16" if orientation == "直式" else "16:9"
-                elif device_type == "平板":
-                    target_ratio = "3:4" if orientation == "直式" else "4:3"
-                else: # 電腦
-                    target_ratio = "9:16" if orientation == "直式" else "16:9"
-
                 chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
                 p_req = client.models.generate_content(
                     model='gemini-3-pro-preview', 
-                    contents=f"提煉一條神級英文 Imagen 4 指令。這是一張 {device_type} {orientation} 的構圖，請強化該比例的視覺張力：{chat_hist}"
+                    contents=f"提煉一條神級英文 Imagen 4 指令：{chat_hist}"
                 )
-                
                 img_res = client.models.generate_images(
                     model='imagen-4.0-generate-001', 
                     prompt=p_req.text,
-                    # 🚀 套用計算出的長寬比
-                    config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=target_ratio)
+                    config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="1:1")
                 )
-                
                 if img_res.generated_images:
                     raw_bytes = img_res.generated_images[0].image.image_bytes
-                    raw_img = Image.open(io.BytesIO(raw_bytes))
-                    
-                    # 🚀 根據側邊欄開關決定是否加浮水印
-                    if enable_watermark:
-                        final_img = add_watermark(raw_img)
-                    else:
-                        final_img = raw_img
-                        
-                    buf = io.BytesIO()
-                    final_img.save(buf, format="JPEG")
-                    st.session_state.gallery.append({"image": final_img, "image_bytes": buf.getvalue()})
-                    
+                    marked_img = add_watermark(Image.open(io.BytesIO(raw_bytes)))
+                    buf = io.BytesIO(); marked_img.save(buf, format="JPEG")
+                    st.session_state.gallery.append({"image": marked_img, "image_bytes": buf.getvalue()})
                     with chat_placeholder:
-                        st.image(final_img, caption="我們的共同傑作！")
+                        st.image(marked_img, caption="我們的共同傑作！")
                         st.download_button("⬇️ 下載圖片", data=buf.getvalue(), file_name="art.jpg", key="dl_main")
             except Exception as e: st.error(f"出圖失敗：{e}")
