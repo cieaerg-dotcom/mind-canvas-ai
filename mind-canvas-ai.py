@@ -553,7 +553,7 @@ if api_key:
             st.session_state.current_svg = svg_req.text
             st.rerun()
 
-    if generate_btn:
+if generate_btn:
         with st.spinner("✨ Imagen 4 具現化中..."):
             try:
                 chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
