@@ -31,18 +31,24 @@ st_image.image_to_url = bulletproof_image_to_url
 # ==========================================
 # 0. 核心工具函數
 # ==========================================
-def clean_ai_message(text):
-    """攔截 SVG 代碼塊，更新到畫板，並從對話文字中移除"""
-    # 尋找 Markdown 格式的 SVG 或純 SVG 代碼
-    svg_pattern = r'
-http://googleusercontent.com/immersive_entry_chip/0
+svg_match = re.search(svg_pattern, text)
     
+    if svg_match:
+        # 提取內部的純代碼
+        inner_svg_code = re.search(r"<svg.*?</svg>", svg_match.group(0), re.DOTALL)
+        if inner_svg_code:
+            st.session_state.current_svg = inner_svg_code.group(0)
+        # 抹除代碼塊
+        text = re.sub(svg_pattern, "", text)
+    
+    return text.strip()
+
 def add_watermark(image, text="Mind Canvas AI"):
     img = image.copy().convert("RGB")
     draw = ImageDraw.Draw(img)
     font_size = int(img.width * 0.025)
     try:
-        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+        font = ImageFont.load_default()
     except:
         font = ImageFont.load_default()
     margin = 15
