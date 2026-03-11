@@ -151,13 +151,10 @@ with col_canvas:
     )
     
     st.divider()
-    
-    # 🚀 要求 3：將側邊欄的畫板工具移動到塗鴉版下方
-    st.markdown("#### 🛠️ 畫板工具")
+    # 🚀 移除「畫板工具」標題，並將 radio 選項設定為橫式 (horizontal=True)
     col_tools1, col_tools2 = st.columns([1, 2])
     with col_tools1:
-        # 使用 key 綁定 session_state，讓上方的畫板能讀取到狀態
-        st.radio("畫筆模式：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice")
+        st.radio("畫筆模式：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice", horizontal=True)
     with col_tools2:
         st.slider("筆觸粗細：", 1, 20, 3, key="stroke_width")
 
