@@ -120,4 +120,147 @@ with col_chat:
             """
             st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。我正在看空白畫布，你有什麼好點子嗎？不管是哪種模糊的感覺都可以，我們一起來把那個場景生出來！"}]
             st.session_state.persona = system_instruction
-            st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中
+            st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中", "光影": "討論中", "風格": "討論中"}
+
+        st.markdown("#### 📝 繪師的草圖筆記")
+        s_cols = st.columns(4)
+        for i, (k, v) in enumerate(st.session_state.canvas_summary.items()):
+            s_cols[i].caption(f"**{k}**")
+            s_cols[i].write(f"`{v}`")
+            
+        st.write("")
+        draw_sketch_btn = st.button("🖌️ 請繪師畫草圖", use_container_width=True)
+        st.divider()
+
+        chat_placeholder = st.container(height=450)
+        with chat_placeholder:
+            for msg in st.session_state.messages:
+                with st.chat_message(msg["role"]): st.markdown(msg["content"])
+
+        prompt = st.chat_input("跟繪師聊聊你的點子...")
+
+with col_canvas:
+    st.markdown("#### 👨‍🎨 協作畫板 (400x400 正方形)")
+    
+    # 動態讀取下方工具列設定 (處理橡皮擦變白筆)
+    actual_stroke_color = "#000000" if st.session_state.tool_choice == "pencil" else "#ffffff"
+    actual_stroke_width = st.session_state.stroke_width if st.session_state.tool_choice == "pencil" else st.session_state.stroke_width + 10
+    
+    # 畫布元件
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",
+        stroke_width=actual_stroke_width, 
+        stroke_color=actual_stroke_color,
+        background_image=st.session_state.ai_sketch_img, # 直接傳入 PIL 圖片
+        update_streamlit=True,
+        height=400, width=400, 
+        drawing_mode="freedraw", 
+        key=f"main_canvas_{st.session_state.canvas_reset_counter}",
+    )
+    
+    st.divider()
+    
+    # 畫板工具列 (橫向排列)
+    col_tools1, col_tools2 = st.columns([1, 2])
+    with col_tools1:
+        st.radio("畫筆模式：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice", horizontal=True)
+    with col_tools2:
+        st.slider("筆觸粗細：", 1, 20, 3, key="stroke_width")
+
+# ==========================================
+# 4. 邏輯處理
+# ==========================================
+if api_key and prompt:
+    current_parts = [{"text": prompt}]
+    
+    if canvas_result is not None and canvas_result.image_data is not None:
+        if np.any(canvas_result.image_data[:, :, 3] > 0):
+            canvas_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA').convert("RGB")
+            current_parts.append(canvas_img)
+    
+    if uploaded_ref:
+        ref_img = Image.open(uploaded_ref).convert("RGB")
+        current_parts.append(ref_img)
+
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    with chat_placeholder:
+        with st.chat_message("user"): st.markdown(prompt)
+        with st.chat_message("assistant"):
+            try:
+                full_contents = []
+                for m in st.session_state.messages[:-1]:
+                    role = "user" if m["role"] == "user" else "model"
+                    full_contents.append({"role": role, "parts": [{"text": m["content"]}]})
+                full_contents.append({"role": "user", "parts": current_parts})
+
+                resp = client.models.generate_content(
+                    model='gemini-3-flash-preview',
+                    contents=full_contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=st.session_state.persona,
+                        temperature=0.7
+                    )
+                )
+                ai_reply = resp.text
+                st.markdown(ai_reply)
+                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                update_canvas_summary(client, "\n".join([m['content'] for m in st.session_state.messages]))
+                st.rerun()
+            except Exception as e: st.error(f"對話錯誤：{e}")
+
+if api_key:
+    if draw_sketch_btn:
+        with st.spinner("我正在幫你畫底稿..."):
+            hist = "\n".join([m['content'] for m in st.session_state.messages])
+            sketch_res = client.models.generate_images(
+                model='imagen-4.0-generate-001',
+                prompt=f"A simple, clean black and white pencil sketch composition of: {hist}",
+                config=types.GenerateImagesConfig(number_of_images=1)
+            )
+            if sketch_res.generated_images:
+                img_bytes = sketch_res.generated_images[0].image.image_bytes
+                st.session_state.ai_sketch_img = Image.open(io.BytesIO(img_bytes)).resize((400, 400))
+                st.rerun()
+
+    if generate_btn:
+        with st.spinner("✨ Imagen 4 具現化中..."):
+            try:
+                # 動態計算長寬比
+                if device_type == "手機":
+                    target_ratio = "9:16" if orientation == "直式" else "16:9"
+                elif device_type == "平板":
+                    target_ratio = "3:4" if orientation == "直式" else "4:3"
+                else:
+                    target_ratio = "9:16" if orientation == "直式" else "16:9"
+
+                chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
+                p_req = client.models.generate_content(
+                    model='gemini-3-pro-preview', 
+                    contents=f"提煉一條神級英文 Imagen 4 指令。這是一張 {device_type} {orientation} 的構圖，請強化該比例的視覺張力：{chat_hist}"
+                )
+                
+                img_res = client.models.generate_images(
+                    model='imagen-4.0-generate-001', 
+                    prompt=p_req.text,
+                    config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=target_ratio)
+                )
+                
+                if img_res.generated_images:
+                    raw_bytes = img_res.generated_images[0].image.image_bytes
+                    raw_img = Image.open(io.BytesIO(raw_bytes))
+                    
+                    if enable_watermark:
+                        final_img = add_watermark(raw_img)
+                    else:
+                        final_img = raw_img
+                        
+                    buf = io.BytesIO()
+                    final_img.save(buf, format="JPEG")
+                    st.session_state.gallery.append({"image": final_img, "image_bytes": buf.getvalue()})
+                    
+                    with chat_placeholder:
+                        st.image(final_img, caption="我們的共同傑作！")
+                        st.download_button("⬇️ 下載圖片", data=buf.getvalue(), file_name="art.jpg", key="dl_main")
+            except Exception as e: 
+                st.error(f"出圖失敗：{e}")
