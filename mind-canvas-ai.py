@@ -197,7 +197,7 @@ with col_chat:
                 with st.chat_message(msg["role"]): st.markdown(msg["content"])
         prompt = st.chat_input("跟繪師聊聊你的點子...")
 
-            st.markdown("#### 📝 繪師的草圖筆記")
+        st.markdown("#### 📝 繪師的草圖筆記")
         s_cols = st.columns(4)
         for i, (k, v) in enumerate(st.session_state.canvas_summary.items()):
             s_cols[i].caption(f"**{k}**")
