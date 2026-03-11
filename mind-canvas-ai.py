@@ -50,6 +50,29 @@ def add_watermark(image, text="Mind Canvas AI"):
     draw.text((x, y), text, font=font, fill=(255, 255, 255, 180))
     return img
 
+def render_svg_animation(svg_content, h):
+    """渲染具有繪製動畫效果的 SVG"""
+    if not svg_content:
+        return
+    clean_svg = svg_content.replace("json", "").replace("svg", "").replace("```", "").strip()
+    if "<svg" in clean_svg:
+        clean_svg = clean_svg.replace("<svg", '<svg style="max-width:100%; height:auto;"')
+
+    animated_html = f"""
+    <div style="display: flex; justify-content: center; align-items: center; background: #fafafa; padding: 10px; border-radius: 10px; border: 1px solid #ddd; overflow: hidden;">
+        <style>
+            svg path, svg circle, svg rect, svg line, svg polyline, svg polygon {{
+                fill: none !important; stroke: #333 !important; stroke-width: 2 !important;
+                stroke-dasharray: 2000; stroke-dashoffset: 2000;
+                animation: draw 3s ease-in-out forwards;
+            }}
+            @keyframes draw {{ to {{ stroke-dashoffset: 0; }} }}
+        </style>
+        {clean_svg}
+    </div>
+    """
+    components.html(animated_html, height=h + 50)
+
 def update_canvas_summary(client, history):
     """提煉目前的對話狀態作為繪圖參考"""
     summary_prompt = f"根據對話更新目前畫面構思狀態，回傳 JSON (主體, 環境, 光影, 風格)。對話：{history}"
@@ -69,6 +92,7 @@ st.set_page_config(page_title="腦內場景側寫師", page_icon="🎨", layout=
 if "gallery" not in st.session_state: st.session_state.gallery = []
 if "canvas_reset_counter" not in st.session_state: st.session_state.canvas_reset_counter = 0
 if "canvas_initial_drawing" not in st.session_state: st.session_state.canvas_initial_drawing = None
+if "current_svg" not in st.session_state: st.session_state.current_svg = ""
 if "tool_choice" not in st.session_state: st.session_state.tool_choice = "pencil"
 if "stroke_width_val" not in st.session_state: st.session_state.stroke_width_val = 3
 
@@ -78,7 +102,7 @@ if "stroke_width_val" not in st.session_state: st.session_state.stroke_width_val
 with st.sidebar:
     st.header("🔑 設定與權限")
     api_key = st.text_input("輸入你的 API Key:", type="password")
-    st.link_button("👉 取得免費 API Key", "[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)")
+    st.link_button("👉 取得免費 API Key", "https://aistudio.google.com/app/apikey")
     st.divider()
     
     st.header("🖼️ 畫布尺寸設定")
@@ -89,7 +113,7 @@ with st.sidebar:
     st.header("📂 參考圖上傳")
     uploaded_ref = st.file_uploader("上傳你的靈感參考圖", type=["png", "jpg", "jpeg"])
     
-    # [REMOVED] 此處原本是「完全清除塗鴉板」按鈕，現已根據需求移除以防誤觸。
+    # [LOCKED] 已根據需求移除「完全清除塗鴉板」按鈕以防止誤觸
         
     st.divider()
     st.header("🚀 最終行動")
@@ -129,7 +153,7 @@ with col_chat:
     if api_key:
         client = genai.Client(api_key=api_key)
         if "messages" not in st.session_state:
-            # [MODIFIED] 描述文字與系統指令已根據最新需求完全更新且不做任何改動
+            # [LOCKED] 描述文字與系統指令鎖定
             system_instruction = """ 你是一位充滿熱情、地位平等的「場景繪師」。你正與一位搭檔（使用者）共同構思一個視覺傑作。 你的目標是透過輕鬆、專業且像好朋友般的聊天，與搭檔磨合出最完美的畫面。並且完全使用繁體中文。
 
         你的溝通準則：
@@ -158,6 +182,13 @@ with col_chat:
         st.info("👋 請先在左側邊欄輸入 API Key 以開始協作！")
 
 with col_canvas:
+    # 🖌️ 繪師的 SVG 構圖示範區域
+    st.markdown("#### 🖌️ 繪師的 SVG 構圖示範")
+    if st.session_state.get("current_svg"):
+        render_svg_animation(st.session_state.current_svg, canvas_h)
+    else:
+        st.info("點擊下方按鈕，我會現場勾勒線條給你看。")
+
     st.markdown(f"#### ✍️ 協作畫布 ({device_type} {orientation})")
     
     # 橡皮擦變白筆邏輯
@@ -228,16 +259,29 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                 
                 # --- [視覺攔截補丁] ---
                 ai_reply_raw = resp.text
+                ai_reply = ai_reply_raw
+
+                # 1. 攔截 JSON (Fabric.js) 輸出至互動畫布
                 json_pattern = r"```json\s*(\{[\s\S]*?\"objects\"[\s\S]*?\})\s*```"
-                json_match = re.search(json_pattern, ai_reply_raw)
-                
+                json_match = re.search(json_pattern, ai_reply)
                 if json_match:
                     try:
                         st.session_state.canvas_initial_drawing = json.loads(json_match.group(1))
-                        ai_reply = re.sub(json_pattern, "\n\n*(我已經在你的畫布上勾勒好構圖線條了，你看看喜不喜歡？)*\n\n", ai_reply_raw)
-                    except: ai_reply = ai_reply_raw
-                else:
-                    ai_reply = re.sub(r"```[\s\S]*?```", "\n\n*(繪師優雅地收起了技術細節，專注於創作中...)*\n\n", ai_reply_raw)
+                        st.session_state.canvas_reset_counter += 1  # 觸發 key 變更，確保 Streamlit 畫布能確實重新渲染
+                        ai_reply = re.sub(json_pattern, "\n\n*(我已經在你的畫布上勾勒好構圖線條了，你看看喜不喜歡？)*\n\n", ai_reply)
+                    except: 
+                        pass
+
+                # 2. 攔截 SVG 輸出至繪師示範區
+                svg_pattern = r"```[a-zA-Z]*\s*(<svg[\s\S]*?</svg>)\s*```|(<svg[\s\S]*?</svg>)"
+                svg_match = re.search(svg_pattern, ai_reply, re.IGNORECASE)
+                if svg_match:
+                    # 判斷是從 code block 抓到 (group 1) 還是純文字抓到 (group 2)
+                    st.session_state.current_svg = svg_match.group(1) if svg_match.group(1) else svg_match.group(2)
+                    ai_reply = re.sub(svg_pattern, "\n\n*(我在上方為你畫了一張草圖，看看這個感覺對不對？)*\n\n", ai_reply, flags=re.IGNORECASE)
+
+                # 3. 清理殘餘的純程式碼區塊 (隱藏技術細節)
+                ai_reply = re.sub(r"```[\s\S]*?```", "\n\n*(繪師優雅地收起了技術細節，專注於創作中...)*\n\n", ai_reply)
 
                 st.markdown(ai_reply)
                 st.session_state.messages.append({"role": "assistant", "content": ai_reply})
