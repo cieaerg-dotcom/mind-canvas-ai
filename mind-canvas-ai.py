@@ -191,17 +191,18 @@ with col_chat:
             st.session_state.persona = system_instruction
             st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中", "光影": "討論中", "風格": "討論中"}
 
-        st.markdown("#### 📝 繪師的草圖筆記")
-        s_cols = st.columns(4)
-        for i, (k, v) in enumerate(st.session_state.canvas_summary.items()):
-            s_cols[i].caption(f"**{k}**")
-            s_cols[i].write(f"`{v}`")
-
         chat_placeholder = st.container(height=450)
         with chat_placeholder:
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.markdown(msg["content"])
         prompt = st.chat_input("跟繪師聊聊你的點子...")
+
+            st.markdown("#### 📝 繪師的草圖筆記")
+        s_cols = st.columns(4)
+        for i, (k, v) in enumerate(st.session_state.canvas_summary.items()):
+            s_cols[i].caption(f"**{k}**")
+            s_cols[i].write(f"`{v}`")
+
     else:
         st.info("👋 請先在左側邊欄輸入 API Key 以開始協作！")
 
