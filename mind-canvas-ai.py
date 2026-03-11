@@ -172,7 +172,32 @@ else: # 電腦
 with col_canvas:
     st.markdown("#### 🖌️ 繪師的 SVG 構圖示範")
     if st.session_state.get("current_svg"):
-        render_svg_animation(st.session_state.current_svg)
+        # 🚀 傳入目前的動態高度 canvas_h
+        render_svg_animation(st.session_state.current_svg, canvas_h)
+        
+    if not svg_content: return
+    clean_svg = svg_content.replace("```json", "").replace("```svg", "").replace("```", "").strip()
+    
+    # 確保 SVG 內部屬性能自動適應寬度
+    if "<svg" in clean_svg:
+        clean_svg = clean_svg.replace("<svg", '<svg style="max-width:100%; height:auto;"')
+
+    animated_html = f"""
+    <div style="display: flex; justify-content: center; align-items: center; background: #fafafa; padding: 10px; border-radius: 10px; border: 1px solid #ddd; overflow: hidden;">
+        <style>
+            svg path, svg circle, svg rect, svg line, svg polyline, svg polygon {{
+                fill: none !important; stroke: #333 !important; stroke-width: 2 !important;
+                stroke-dasharray: 2000; stroke-dashoffset: 2000;
+                animation: draw 3s ease-in-out forwards;
+            }}
+            @keyframes draw {{ to {{ stroke-dashoffset: 0; }} }}
+        </style>
+        {clean_svg}
+    </div>
+    """
+    # 高度隨動態畫板調整，預留 50px 給邊框
+    components.html(animated_html, height=h + 50)
+    
     else:
         st.info("點擊下方按鈕，我會現場勾勒線條給你看。")
     
@@ -264,9 +289,10 @@ if api_key:
     if draw_sketch_btn:
         with st.spinner("繪師正在勾勒軌跡..."):
             hist = "\n".join([m['content'] for m in st.session_state.messages])
+            # 🚀 修正：強制 AI 生成符合目前畫板尺寸 (canvas_w x canvas_h) 的 SVG
             svg_req = client.models.generate_content(
                 model='gemini-3-pro-preview',
-                contents=f"生成 400x400 純 SVG 簡單線條構圖。只回傳 <svg> 代碼。對話：{hist}"
+                contents=f"請根據對話，生成一個比例為 {ratio} (尺寸設定為 {canvas_w}x{canvas_h}) 的純 SVG 線條構圖。只輸出有效的 <svg> 標籤與內部路徑碼，不要包含任何 markdown 或文字解釋。對話：{hist}"
             )
             st.session_state.current_svg = svg_req.text
             st.rerun()
