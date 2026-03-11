@@ -155,16 +155,20 @@ with col_chat:
     else:
         st.info("👋 請先在左側邊欄輸入 API Key 才能開始繪畫之旅喔！")
 # ==========================================
-# 📐 畫板比例動態計算邏輯
+# 📐 畫板比例動態計算 (修正版：最大長邊 400px)
 # ==========================================
-# 根據選擇的比例計算畫板的長寬 (以 600px 為基準最大值)
+MAX_SIDE = 400 # 縮小基準點，確保雙欄佈局不爆版
+
 if device_type == "手機":
-    canvas_w, canvas_h = (338, 600) if orientation == "直式" else (600, 338) # 9:16
+    # 9:16 比例
+    canvas_w, canvas_h = (int(MAX_SIDE * 9/16), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 9/16))
 elif device_type == "平板":
-    canvas_w, canvas_h = (450, 600) if orientation == "直式" else (600, 450) # 3:4
-else: # 電腦
-    canvas_w, canvas_h = (600, 338) if orientation == "直式" else (600, 338) # 16:9
-    
+    # 3:4 比例
+    canvas_w, canvas_h = (int(MAX_SIDE * 3/4), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 3/4))
+else: # 電腦 
+    # 16:9 比例
+    canvas_w, canvas_h = (int(MAX_SIDE * 9/16), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 9/16))
+
 with col_canvas:
     st.markdown("#### 🖌️ 繪師的 SVG 構圖示範")
     if st.session_state.get("current_svg"):
@@ -174,30 +178,34 @@ with col_canvas:
     
     draw_sketch_btn = st.button("🖌️ 請繪師示範構圖 (免額度)", use_container_width=True)
     st.divider()
-    st.markdown("#### ✍️ 你的專屬塗鴉板")
-    # 🚀 邏輯修正：確保工具列的值先被讀取，再餵給畫板
-    c_tool = st.session_state.tool_choice
-    c_width = st.session_state.stroke_width_val
     
-    color = "#000000" if c_tool == "pencil" else "#ffffff"
-    final_width = c_width if c_tool == "pencil" else c_width + 10
+    st.markdown(f"#### ✍️ 你的專屬塗鴉板 ({device_type} {orientation})")
     
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",
-        stroke_width=final_width, stroke_color=color,
-        background_color="#ffffff", 
-        update_streamlit=True,
-        # 🚀 這裡換成動態長寬
-        height=canvas_h, width=canvas_w, 
-        drawing_mode="freedraw",
-        # 🚀 加上比例變數到 key 裡面，確保切換比例時畫板會自動重置
-        key=f"canvas_{st.session_state.canvas_reset_counter}_{device_type}_{orientation}",
-    )
-    # 🚀 畫板工具放在下方
-    col_t1, col_t2 = st.columns([1, 1])
-    with col_t1:
+    # 橡皮擦變白筆邏輯
+    color = "#000000" if st.session_state.tool_choice == "pencil" else "#ffffff"
+    # 畫板縮小了，筆觸也要稍微調細一點才精準
+    width = st.session_state.stroke_width_val if st.session_state.tool_choice == "pencil" else st.session_state.stroke_width_val + 10
+    
+    # 使用 container 包裹，確保排版整齊
+    canvas_container = st.container()
+    with canvas_container:
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",
+            stroke_width=width, 
+            stroke_color=color,
+            background_color="#ffffff", 
+            update_streamlit=True,
+            height=canvas_h, # 🚀 動態高度
+            width=canvas_w,  # 🚀 動態寬度
+            drawing_mode="freedraw",
+            key=f"canvas_{st.session_state.canvas_reset_counter}_{device_type}_{orientation}",
+        )
+
+    # 工具列與按鈕
+    c1, c2 = st.columns([1, 1])
+    with c1:
         st.radio("工具：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice", horizontal=True)
-    with col_t2:
+    with c2:
         st.slider("粗細：", 1, 30, 3, key="stroke_width_val")
 
     send_drawing_btn = st.button("📤 傳送我的塗鴉給繪師", use_container_width=True)
