@@ -113,8 +113,6 @@ with st.sidebar:
     st.header("📂 參考圖上傳")
     uploaded_ref = st.file_uploader("上傳你的靈感參考圖", type=["png", "jpg", "jpeg"])
     
-    # [LOCKED] 已根據需求移除「完全清除塗鴉板」按鈕以防止誤觸
-        
     st.divider()
     st.header("🚀 最終行動")
     enable_watermark = st.checkbox("🏷️ 在成品加上浮水印", value=True)
@@ -298,7 +296,7 @@ if api_key:
         with st.spinner("繪師正在畫布上運筆..."):
             hist = "\n".join([m['content'] for m in st.session_state.messages])
             canvas_req = client.models.generate_content(
-                model='gemini-2.5-flash-preview-09-2025', 
+                model='gemini-3-flash-preview', 
                 contents=f"請根據對話，生成一個 Fabric.js 格式的 JSON 代碼塊（尺寸 {canvas_w}x{canvas_h}）。只需生成 object 陣列。對話：{hist}"
             )
             try:
