@@ -197,7 +197,7 @@ with col_chat:
                 with st.chat_message(msg["role"]): st.markdown(msg["content"])
         prompt = st.chat_input("跟繪師聊聊你的點子...")
 
-        st.markdown("#### 📝 繪師的草圖筆記")
+        st.markdown("###### 📝 繪師的草圖筆記")
         s_cols = st.columns(4)
         for i, (k, v) in enumerate(st.session_state.canvas_summary.items()):
             s_cols[i].caption(f"**{k}**")
@@ -207,7 +207,7 @@ with col_chat:
         st.info("👋 請先在左側邊欄輸入 API Key 以開始協作！")
 
 with col_canvas:
-    st.markdown("#### 🖌️ 繪師的 SVG 構圖示範")
+    st.markdown("###### 🖌️ 繪師的構圖示範")
     if st.session_state.get("current_svg"):
         render_svg_animation(st.session_state.current_svg, canvas_h)
     else:
