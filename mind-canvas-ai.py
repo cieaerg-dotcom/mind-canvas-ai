@@ -9,9 +9,9 @@ import base64
 import numpy as np
 import streamlit.components.v1 as components
 
-==========================================
+#==========================================
 # 🚀 2026 終極無敵補丁：Base64 繞過法 (雲端專用)
-==========================================
+#==========================================
 import streamlit.elements.image as st_image
 
 def bulletproof_image_to_url(data, *args, **kwargs):
@@ -27,9 +27,9 @@ def bulletproof_image_to_url(data, *args, **kwargs):
 
 st_image.image_to_url = bulletproof_image_to_url
 
-==========================================
+#==========================================
 # 0. 核心工具函數
-==========================================
+#==========================================
 def add_watermark(image, text="Mind Canvas AI"):
     img = image.copy().convert("RGB")
     draw = ImageDraw.Draw(img)
@@ -77,9 +77,9 @@ def update_canvas_summary(client, history):
     except:
         pass
 
-==========================================
+#==========================================
 # 1. 網頁基本設定
-==========================================
+#==========================================
 st.set_page_config(page_title="腦內場景側寫師", page_icon="🎨", layout="wide")
 if "gallery" not in st.session_state: st.session_state.gallery = []
 if "canvas_reset_counter" not in st.session_state: st.session_state.canvas_reset_counter = 0
@@ -87,9 +87,9 @@ if "current_svg" not in st.session_state: st.session_state.current_svg = ""
 if "tool_choice" not in st.session_state: st.session_state.tool_choice = "pencil"
 if "stroke_width_val" not in st.session_state: st.session_state.stroke_width_val = 3
 
-==========================================
+#==========================================
 # 2. 側邊欄：設定、上傳與畫廊
-==========================================
+#==========================================
 with st.sidebar:
     st.header("🔑 設定與權限")
     api_key = st.text_input("輸入你的 API Key:", type="password")
@@ -118,9 +118,9 @@ with st.sidebar:
                 st.image(item["image"], use_container_width=True)
                 st.download_button("⬇️ 下載", data=item["image_bytes"], file_name=f"art-{idx}.jpg", key=f"dl_{idx}")
 
-==========================================
+#==========================================
 # 📐 畫板比例動態計算 (最大長邊 400px)
-==========================================
+#==========================================
 MAX_SIDE = 400
 if device_type == "手機":
     canvas_w, canvas_h = (int(MAX_SIDE * 9/16), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 9/16))
@@ -133,9 +133,9 @@ else: # 電腦
     canvas_h = int(MAX_SIDE * 9/16)
     ratio = "16:9"
 
-==========================================
+#==========================================
 # 3. 主頁面佈局
-==========================================
+#==========================================
 st.title("🎨 腦內場景側寫師：協作畫室")
 col_chat, col_canvas = st.columns([1, 1])
 
@@ -198,9 +198,9 @@ with col_canvas:
         st.slider("粗細：", 1, 30, 3, key="stroke_width_val")
     send_drawing_btn = st.button("📤 傳送我的塗鴉給繪師", use_container_width=True)
 
-==========================================
+#==========================================
 # 4. 邏輯處理
-==========================================
+#==========================================
 def send_message_to_ai(client, text_prompt, include_canvas=False):
     current_parts = []
     if text_prompt:
