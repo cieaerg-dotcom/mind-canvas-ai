@@ -162,8 +162,8 @@ if device_type == "手機":
     canvas_w, canvas_h = (338, 600) if orientation == "直式" else (600, 338) # 9:16
 elif device_type == "平板":
     canvas_w, canvas_h = (450, 600) if orientation == "直式" else (600, 450) # 3:4
-else: # 電腦
-    canvas_w, canvas_h = (338, 600) if orientation == "直式" else (600, 338) # 16:9
+else device_type == "電腦":
+    canvas_w, canvas_h = (600, 338) if orientation == "直式" else (600, 338) # 16:9
     
 with col_canvas:
     st.markdown("#### 🖌️ 繪師的 SVG 構圖示範")
@@ -271,8 +271,8 @@ if api_key:
                     ratio = "9:16" if orientation == "直式" else "16:9"
                 elif device_type == "平板":
                     ratio = "3:4" if orientation == "直式" else "4:3"
-                else: # 電腦
-                    ratio = "16:9" if orientation == "橫式" else "9:16"
+                else device_type == "電腦":
+                    ratio = "9:16" if orientation == "橫式" else "9:16"
                 
                 chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
                 
