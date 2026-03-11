@@ -297,4 +297,67 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                 ai_reply = resp.text
                 
                 # 攔截 SVG 模式
-                svg_pattern = r"
+                svg_pattern = r"```[a-zA-Z]*\s*(<svg[\s\S]*?</svg>)\s*```|(<svg[\s\S]*?</svg>)"
+                svg_match = re.search(svg_pattern, ai_reply, re.IGNORECASE)
+                if svg_match:
+                    st.session_state.current_svg = svg_match.group(1) if svg_match.group(1) else svg_match.group(2)
+                    ai_reply = re.sub(svg_pattern, "\n\n*(我在上方為你畫了一張草圖，看看這個感覺對不對？)*\n\n", ai_reply, flags=re.IGNORECASE)
+
+                ai_reply = re.sub(r"```[\s\S]*?```", "\n\n*(繪師優雅地收起了技術細節，專注於創作中...)*\n\n", ai_reply)
+
+                st.markdown(ai_reply)
+                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                update_canvas_summary(client, "\n".join([m['content'] for m in st.session_state.messages]), selected_chat_model)
+                st.rerun()
+            except Exception as e: st.error(f"對話錯誤：{e}")
+
+#==========================================
+# 最終行動
+#==========================================
+if api_key:
+    if prompt:
+        send_message_to_ai(client, prompt, include_canvas=False)
+    if send_drawing_btn:
+        send_message_to_ai(client, "", include_canvas=True)
+    if draw_sketch_btn:
+        if not is_chat_allowed:
+            st.warning("⚠️ 繪師現在無法動筆，請檢查對話模型權限。")
+        else:
+            with st.spinner("繪師正在畫布上運筆..."):
+                hist = "\n".join([m['content'] for m in st.session_state.messages])
+                # [MODIFIED: 參考呼叫模式]
+                canvas_req = client.models.generate_content(
+                    model=selected_chat_model,
+                    contents=f"請根據對話，生成一個簡潔、帶有線條感的 SVG 代碼塊作為構圖示範（尺寸 {canvas_w}x{canvas_h}）。請確保輸出包含完整的 <svg> 標籤。對話：{hist}"
+                )
+                try:
+                    match = re.search(r"<svg[\s\S]*?</svg>", canvas_req.text, re.IGNORECASE)
+                    if match:
+                        st.session_state.current_svg = match.group(0)
+                        st.rerun()
+                except: st.warning("繪師手滑了，請再試一次示範。")
+    
+    if generate_btn:
+        if not is_image_allowed:
+            st.error(f"🚫 無法具現化：您的 API Key 無權限呼叫 `{selected_image_model}`。")
+        else:
+            with st.spinner(f"✨ {selected_image_model} 具現化中..."):
+                try:
+                    chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
+                    # [MODIFIED: 參考呼叫模式]
+                    p_req = client.models.generate_content(model=selected_chat_model,
+                        contents=f"提煉一條英文 {selected_image_model} 指令。這是一張 {ratio} 比例的構圖：{chat_hist}")
+                    
+                    img_res = client.models.generate_images(model=selected_image_model,
+                        prompt=p_req.text, config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=ratio))
+                    
+                    if img_res.generated_images:
+                        raw_bytes = img_res.generated_images[0].image.image_bytes
+                        final_img = Image.open(io.BytesIO(raw_bytes))
+                        if enable_watermark: final_img = add_watermark(final_img)
+                        buf = io.BytesIO(); final_img.save(buf, format="JPEG")
+                        st.session_state.gallery.append({"image": final_img, "image_bytes": buf.getvalue()})
+                        with chat_placeholder:
+                            st.image(final_img, caption=f"具現化完成 (比例: {ratio})")
+                        st.download_button("⬇️ 下載最終成品", data=buf.getvalue(), file_name="art.jpg", key="dl_main")
+                except Exception as e: st.error(f"出圖失敗：{e}")
