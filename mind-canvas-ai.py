@@ -32,8 +32,10 @@ st_image.image_to_url = bulletproof_image_to_url
 # 0. 核心工具函數
 # ==========================================
 def clean_ai_message(text):
-    """🚀 攔截 SVG 代碼，更新到畫板，並從對話中移除"""
+    """攔截 SVG 代碼塊，更新到畫板，並從對話文字中移除"""
+    # 尋找 Markdown 格式的 SVG 或純 SVG 代碼
     svg_pattern = r'
+http://googleusercontent.com/immersive_entry_chip/0
     
 def add_watermark(image, text="Mind Canvas AI"):
     img = image.copy().convert("RGB")
