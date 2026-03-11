@@ -28,13 +28,6 @@ def add_watermark(image, text="Mind Canvas AI"):
     draw.text((x, y), text, font=font, fill=(255, 255, 255, 180)) 
     return img
 
-def get_image_base64(img):
-    if img is None: return None
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    return f"data:image/png;base64,{img_str}"
-
 def update_canvas_summary(client, history):
     summary_prompt = f"根據對話更新目前畫面構思狀態，回傳 JSON (主體, 環境, 光影, 風格)。對話：{history}"
     try:
@@ -114,14 +107,17 @@ with col_chat:
             st.session_state.persona = system_instruction
             st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中", "光影": "討論中", "風格": "討論中"}
 
-        st.markdown("#### 📝 繪師的草圖")
+        # --- 🚀 排版優化區塊 ---
+        st.markdown("#### 📝 繪師的草圖筆記")
         s_cols = st.columns(4)
         for i, (k, v) in enumerate(st.session_state.canvas_summary.items()):
             s_cols[i].caption(f"**{k}**")
             s_cols[i].write(f"`{v}`")
 
-        # 🚀 要求 2：「請繪師畫草圖」按鈕移到會師的草圖下方
+        st.write("") # 增加一點垂直留白
         draw_sketch_btn = st.button("🖌️ 請繪師畫草圖", use_container_width=True)
+        st.divider() # 加入分隔線，將筆記與下方聊天室切開
+        # ------------------------
 
         chat_placeholder = st.container(height=450)
         with chat_placeholder:
@@ -132,26 +128,22 @@ with col_chat:
 
 with col_canvas:
     st.markdown("#### 👨‍🎨 協作畫板 (400x400 正方形)")
-    bg_img_url = get_image_base64(st.session_state.ai_sketch_img)
     
-    # 🚀 要求 1：處理橡皮擦變白筆的邏輯 (動態讀取下方工具列設定)
     actual_stroke_color = "#000000" if st.session_state.tool_choice == "pencil" else "#ffffff"
     actual_stroke_width = st.session_state.stroke_width if st.session_state.tool_choice == "pencil" else st.session_state.stroke_width + 10
     
-    # 🚀 要求 1：套用修改後的塗鴉板參數
+    # 🚀 崩潰修復：直接傳入 PIL 圖片 (st.session_state.ai_sketch_img)
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=actual_stroke_width, 
         stroke_color=actual_stroke_color,
-        background_image=bg_img_url, 
+        background_image=st.session_state.ai_sketch_img, # <- 這裡改回真正的 PIL 圖片
         update_streamlit=True,
         height=400, width=400, 
-        drawing_mode="freedraw", # 永遠保持自由畫筆模式
+        drawing_mode="freedraw", 
         key=f"main_canvas_{st.session_state.canvas_reset_counter}",
     )
     
-    st.divider()
-    # 🚀 移除「畫板工具」標題，並將 radio 選項設定為橫式 (horizontal=True)
     col_tools1, col_tools2 = st.columns([1, 2])
     with col_tools1:
         st.radio("畫筆模式：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice", horizontal=True)
