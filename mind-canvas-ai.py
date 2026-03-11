@@ -25,15 +25,6 @@ def bulletproof_image_to_url(data, *args, **kwargs):
             return ""
     return ""
 
-import re # 確保程式碼最上方有 import re
-
-def clean_ai_message(text):
-    """攔截 SVG 代碼，更新到畫板，並從對話中移除"""
-    # 尋找 <svg> ... </svg> 區塊 (包含 Markdown 標籤)
-    svg_pattern = r'
-http://googleusercontent.com/immersive_entry_chip/0
-
-
 st_image.image_to_url = bulletproof_image_to_url
 
 # ==========================================
