@@ -1,6 +1,6 @@
 svg_match = re.search(svg_pattern, text)
     
-    if svg_match:
+if svg_match:
         # 提取內部的純代碼
         inner_svg_code = re.search(r"<svg.*?</svg>", svg_match.group(0), re.DOTALL)
         if inner_svg_code:
