@@ -91,12 +91,16 @@ IMAGE_MODEL_OPTIONS =  ["gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview
 
 if "available_models" not in st.session_state:
     st.session_state.available_models = []
+if "last_api_key" not in st.session_state:
+    st.session_state.last_api_key = ""
 
 def model_format_func(m_id):
     """格式化模型顯示名稱，標註權限狀態"""
     if not st.session_state.get("api_key_valid", False):
         return m_id
-    status = "✅" if m_id in st.session_state.available_models else "❌ (無權限)"
+    # 改用子字串檢查，以應對 API 回傳的完整路徑名稱
+    found = any(m_id in name for name in st.session_state.available_models)
+    status = "✅" if found else "❌ (無權限)"
     return f"{m_id} {status}"
 
 #==========================================
@@ -120,24 +124,28 @@ with st.sidebar:
     api_key = st.text_input("輸入你的 API Key:", type="password")
     st.link_button("👉 取得免費 API Key", "https://aistudio.google.com/app/apikey")
     
-    if api_key:
+    # --- [MODIFIED: 權限偵測邏輯優化] ---
+    if api_key and (st.session_state.last_api_key != api_key):
         try:
             temp_client = genai.Client(api_key=api_key)
-            st.session_state.available_models = [m.name.split('/')[-1] for m in temp_client.models.list()]
+            # 獲取模型名稱列表並統一格式
+            st.session_state.available_models = [m.name for m in temp_client.models.list()]
             st.session_state.api_key_valid = True
+            st.session_state.last_api_key = api_key
+            st.rerun() # 強制刷新 UI 以更新 selectbox 狀態
         except:
             st.session_state.available_models = []
             st.session_state.api_key_valid = False
-    else:
-        st.session_state.available_models = []
-        st.session_state.api_key_valid = False
+            st.session_state.last_api_key = api_key
 
     st.subheader("🤖 模型配置")
     selected_chat_model = st.selectbox("對話模型：", CHAT_MODEL_OPTIONS, format_func=model_format_func)
     selected_image_model = st.selectbox("出圖模型：", IMAGE_MODEL_OPTIONS, format_func=model_format_func)
     
-    is_chat_allowed = selected_chat_model in st.session_state.available_models
-    is_image_allowed = selected_image_model in st.session_state.available_models
+    # 權限旗標
+    is_chat_allowed = any(selected_chat_model in name for name in st.session_state.available_models)
+    is_image_allowed = any(selected_image_model in name for name in st.session_state.available_models)
+    # --- [END MODIFIED] ---
 
     st.divider()
     st.header("🖼️ 畫布尺寸設定")
@@ -197,6 +205,7 @@ with col_chat:
             """
             st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。你有什麼好點子嗎？"}]
             st.session_state.persona = system_instruction
+            # [FIXED: 修復 SyntaxError 殘缺字串]
             st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中", "光影": "討論中", "風格": "討論中"}
 
         st.markdown("#### 📝 繪師的草圖筆記")
@@ -293,6 +302,8 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                 )
                 
                 ai_reply = resp.text
+                
+                # 攔截 JSON (Fabric.js)
                 json_pattern = r"```json\s*(\{[\s\S]*?\"objects\"[\s\S]*?\})\s*```"
                 json_match = re.search(json_pattern, ai_reply)
                 if json_match:
@@ -302,6 +313,7 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                         ai_reply = re.sub(json_pattern, "\n\n*(我已經在你的畫布上勾勒好構圖線條了，你看看喜不喜歡？)*\n\n", ai_reply)
                     except: pass
 
+                # 攔截 SVG
                 svg_pattern = r"```[a-zA-Z]*\s*(<svg[\s\S]*?</svg>)\s*```|(<svg[\s\S]*?</svg>)"
                 svg_match = re.search(svg_pattern, ai_reply, re.IGNORECASE)
                 if svg_match:
@@ -325,7 +337,7 @@ if api_key:
     if send_drawing_btn:
         send_message_to_ai(client, "", include_canvas=True)
     if draw_sketch_btn:
-        # --- [MODIFIED: 示範邏輯由 JSON 改為 SVG] ---
+        # [MODIFIED: 輸出改為 SVG 模式]
         if not is_chat_allowed:
             st.warning("⚠️ 繪師現在無法動筆，請檢查對話模型權限。")
         else:
@@ -336,13 +348,11 @@ if api_key:
                     contents=f"請根據對話，生成一個簡潔、帶有線條感的 SVG 代碼塊作為構圖示範（尺寸 {canvas_w}x{canvas_h}）。請確保輸出包含完整的 <svg> 標籤。對話：{hist}"
                 )
                 try:
-                    # 搜尋 SVG 標籤內容
                     match = re.search(r"<svg[\s\S]*?</svg>", canvas_req.text, re.IGNORECASE)
                     if match:
                         st.session_state.current_svg = match.group(0)
                         st.rerun()
                 except: st.warning("繪師手滑了，請再試一次示範。")
-        # --- [END MODIFIED] ---
     
     if generate_btn:
         if not is_image_allowed:
