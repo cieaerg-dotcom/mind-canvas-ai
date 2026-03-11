@@ -178,7 +178,7 @@ else:
 #==========================================
 # 3. 主頁面佈局
 #==========================================
-st.title("🎨 腦內場景側寫師：畫布協作室")
+st.title("#### 🎨 腦內場景側寫師：畫布協作室")
 col_chat, col_canvas = st.columns([1, 1])
 
 with col_chat:
@@ -213,7 +213,7 @@ with col_canvas:
     else:
         st.info("點擊下方按鈕，我會現場勾勒線條給你看。")
 
-    st.markdown(f"#### ✍️ 協作畫布 ({device_type} {orientation})")
+    st.markdown(f"###### ✍️ 協作畫布 ({device_type} {orientation})")
     
     color = "#000000" if st.session_state.tool_choice == "pencil" else "#ffffff"
     width = st.session_state.stroke_width_val if st.session_state.tool_choice == "pencil" else st.session_state.stroke_width_val + 10
