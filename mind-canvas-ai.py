@@ -154,7 +154,17 @@ with col_chat:
         prompt = st.chat_input("跟繪師聊聊你的點子...")
     else:
         st.info("👋 請先在左側邊欄輸入 API Key 才能開始繪畫之旅喔！")
-
+# ==========================================
+# 📐 畫板比例動態計算邏輯
+# ==========================================
+# 根據選擇的比例計算畫板的長寬 (以 600px 為基準最大值)
+if device_type == "手機":
+    canvas_w, canvas_h = (338, 600) if orientation == "直式" else (600, 338) # 9:16
+elif device_type == "平板":
+    canvas_w, canvas_h = (450, 600) if orientation == "直式" else (600, 450) # 3:4
+else: # 電腦
+    canvas_w, canvas_h = (338, 600) if orientation == "直式" else (600, 338) # 16:9
+    
 with col_canvas:
     st.markdown("#### 🖌️ 繪師的 SVG 構圖示範")
     if st.session_state.get("current_svg"):
@@ -177,8 +187,11 @@ with col_canvas:
         stroke_width=final_width, stroke_color=color,
         background_color="#ffffff", 
         update_streamlit=True,
-        height=400, width=400, drawing_mode="freedraw",
-        key=f"main_canvas_{st.session_state.canvas_reset_counter}",
+        # 🚀 這裡換成動態長寬
+        height=canvas_h, width=canvas_w, 
+        drawing_mode="freedraw",
+        # 🚀 加上比例變數到 key 裡面，確保切換比例時畫板會自動重置
+        key=f"canvas_{st.session_state.canvas_reset_counter}_{device_type}_{orientation}",
     )
     # 🚀 畫板工具放在下方
     col_t1, col_t2 = st.columns([1, 1])
