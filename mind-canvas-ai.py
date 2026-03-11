@@ -25,6 +25,15 @@ def bulletproof_image_to_url(data, *args, **kwargs):
             return ""
     return ""
 
+import re # 確保程式碼最上方有 import re
+
+def clean_ai_message(text):
+    """攔截 SVG 代碼，更新到畫板，並從對話中移除"""
+    # 尋找 <svg> ... </svg> 區塊 (包含 Markdown 標籤)
+    svg_pattern = r'
+http://googleusercontent.com/immersive_entry_chip/0
+
+
 st_image.image_to_url = bulletproof_image_to_url
 
 # ==========================================
@@ -152,6 +161,10 @@ with col_chat:
             3. **視覺專家的直覺**：自然地提到構圖或光影的建議。
             4. **節奏掌控**：建議：「這構思不錯喔，我先幫你勾個大概的構圖（SVG）給你看？」
             5. **共同守護**：在出圖前，確保雙方都對共同結晶感到興奮。
+            重要規則：
+            1. 絕對不要在對話框中顯示任何 XML 或 SVG 代碼塊。
+            2. 如果你想提供構圖示範，請直接輸出 SVG 代碼，我會自動處理。
+            3. 你的對話應該只包含人類看得懂的建議、鼓勵與靈感討論。
             """
             st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。你有什麼好點子嗎？"}]
             st.session_state.persona = system_instruction
