@@ -253,18 +253,45 @@ if api_key:
     if generate_btn:
         with st.spinner("✨ Imagen 4 具現化中..."):
             try:
-                ratio = "9:16" if orientation == "直式" else "16:9"
-                if device_type == "平板": ratio = "3:4" if orientation == "直式" else "4:3"
+                # 🚀 修正 1：建立精準的比例映射表
+                if device_type == "手機":
+                    ratio = "9:16" if orientation == "直式" else "16:9"
+                elif device_type == "平板":
+                    ratio = "3:4" if orientation == "直式" else "4:3"
+                else: # 電腦
+                    ratio = "16:9" if orientation == "橫式" else "9:16"
+                
                 chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
-                p_req = client.models.generate_content(model='gemini-3-pro-preview', contents=f"提煉英文 Imagen 4 指令：{chat_hist}")
-                img_res = client.models.generate_images(model='imagen-4.0-generate-001', prompt=p_req.text, config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=ratio))
+                
+                # 🚀 修正 2：讓 AI 指令提煉時，也明確知道目標比例（增加構圖成功率）
+                p_req = client.models.generate_content(
+                    model='gemini-3-pro-preview', 
+                    contents=f"提煉一條英文 Imagen 4 指令。注意這是一張 {ratio} 比例的 {orientation} 構圖，請強化該比例下的視覺張力：{chat_hist}"
+                )
+                
+                img_res = client.models.generate_images(
+                    model='imagen-4.0-generate-001', 
+                    prompt=p_req.text, 
+                    config=types.GenerateImagesConfig(
+                        number_of_images=1, 
+                        aspect_ratio=ratio # 🚀 確保傳入動態計算的比例
+                    )
+                )
+                
                 if img_res.generated_images:
                     raw_bytes = img_res.generated_images[0].image.image_bytes
                     final_img = Image.open(io.BytesIO(raw_bytes))
-                    if enable_watermark: final_img = add_watermark(final_img)
-                    buf = io.BytesIO(); final_img.save(buf, format="JPEG")
+                    
+                    if enable_watermark: 
+                        final_img = add_watermark(final_img)
+                        
+                    buf = io.BytesIO()
+                    final_img.save(buf, format="JPEG")
+                    
                     st.session_state.gallery.append({"image": final_img, "image_bytes": buf.getvalue()})
+                    
                     with chat_placeholder:
-                        st.image(final_img, caption="我們的共同傑作！")
+                        st.image(final_img, caption=f"具現化完成 (比例: {ratio})")
                         st.download_button("⬇️ 下載", data=buf.getvalue(), file_name="art.jpg", key="dl_main")
-            except Exception as e: st.error(f"出圖失敗：{e}")
+            except Exception as e: 
+                st.error(f"出圖失敗：{e}")
