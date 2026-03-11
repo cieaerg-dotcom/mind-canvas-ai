@@ -253,7 +253,7 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                 full_contents.append({"role": "user", "parts": current_parts})
 
                 resp = client.models.generate_content(
-                    model='gemini-2.5-flash-preview-09-2025', contents=full_contents,
+                    model='gemini-3-flash-preview', contents=full_contents,
                     config=types.GenerateContentConfig(system_instruction=st.session_state.persona, temperature=0.7)
                 )
                 
@@ -312,7 +312,7 @@ if api_key:
         with st.spinner("✨ Imagen 4 具現化中..."):
             try:
                 chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
-                p_req = client.models.generate_content(model='gemini-2.5-flash-preview-09-2025', 
+                p_req = client.models.generate_content(model='gemini-3-flash-preview', 
                     contents=f"提煉一條英文 Imagen 4 指令。這是一張 {ratio} 比例的構圖：{chat_hist}")
                 
                 img_res = client.models.generate_images(model='imagen-4.0-generate-001', 
