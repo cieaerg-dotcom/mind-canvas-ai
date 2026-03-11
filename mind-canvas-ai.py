@@ -128,7 +128,7 @@ elif device_type == "平板":
     canvas_w, canvas_h = (int(MAX_SIDE * 3/4), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 3/4))
     ratio = "3:4" if orientation == "直式" else "4:3"
 else: # 電腦 
-    canvas_w, canvas_h = (int(MAX_SIDE * 9/16), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 9/16))
+    canvas_w, canvas_h = (int(MAX_SIDE * 9/16), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 16/9))
     ratio = "9:16" if orientation == "直式" else "9:16"
 
 # ==========================================
