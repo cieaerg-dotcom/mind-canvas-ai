@@ -10,40 +10,24 @@ import numpy as np
 import streamlit.components.v1 as components
 
 # ==========================================
-# 🚀 2026 終極修復：彈性補丁 (Flexible Monkey Patch v4)
+# 🚀 2026 終極無敵補丁：Base64 繞過法
+# 徹底解決 Streamlit 內部 image_to_url 的版本相容性問題
 # ==========================================
 import streamlit.elements.image as st_image
-try:
-    from streamlit.runtime import get_instance
-except ImportError:
-    get_instance = None
 
-if not hasattr(st_image, 'image_to_url'):
-    def dummy_image_to_url(data, width, *args, **kwargs):
-        output_format = "PNG"
-        image_id = None
-        if len(args) == 4: 
-            output_format = args[2]
-            image_id = args[3]
-        elif len(args) >= 5:
-            output_format = args[3]
-            image_id = args[4]
-
-        if isinstance(data, Image.Image):
+def bulletproof_image_to_url(data, *args, **kwargs):
+    if isinstance(data, Image.Image):
+        try:
             buf = io.BytesIO()
-            data.save(buf, format=output_format)
-            data = buf.getvalue()
+            data.save(buf, format="PNG")
+            b64_str = base64.b64encode(buf.getvalue()).decode()
+            return f"data:image/png;base64,{b64_str}"
+        except Exception:
+            return ""
+    return ""
 
-        runtime = get_instance() if get_instance else None
-        if runtime:
-            try:
-                mimetype = f"image/{output_format.lower()}"
-                return runtime.media_file_mgr.add(data, mimetype, image_id)
-            except Exception:
-                return ""
-        return ""
-    
-    st_image.image_to_url = dummy_image_to_url
+# 強制覆蓋核心函數，確保畫板組件不崩潰
+st_image.image_to_url = bulletproof_image_to_url
 
 # ==========================================
 # 0. 核心工具函數
@@ -53,6 +37,7 @@ def add_watermark(image, text="Mind Canvas AI"):
     draw = ImageDraw.Draw(img)
     font_size = int(img.width * 0.025)
     try:
+        # macOS/Linux 通用字體路徑嘗試
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
     except:
         font = ImageFont.load_default()
@@ -66,7 +51,7 @@ def add_watermark(image, text="Mind Canvas AI"):
 
 def render_svg_animation(svg_content):
     if not svg_content: return
-    clean_svg = svg_content.replace("xml", "").replace("html", "").replace("svg", "").strip()
+    clean_svg = svg_content.replace("xml", "").replace("html", "").replace("svg", "").replace("```", "").strip()
     animated_html = f"""
     <div style="display: flex; justify-content: center; background: #fafafa; padding: 10px; border-radius: 10px; border: 1px solid #ddd;">
         <style>
@@ -89,7 +74,7 @@ def update_canvas_summary(client, history):
     summary_prompt = f"根據對話更新目前畫面構思狀態，回傳 JSON (主體, 環境, 光影, 風格)。對話：{history}"
     try:
         res = client.models.generate_content(model='gemini-3-flash-preview', contents=summary_prompt)
-        clean_json = res.text.replace("json", "").strip()
+        clean_json = res.text.replace("```json", "").replace("```", "").strip()
         st.session_state.canvas_summary = json.loads(clean_json)
     except: pass
 
@@ -101,14 +86,16 @@ st.set_page_config(page_title="腦內場景側寫師", page_icon="🎨", layout=
 if "gallery" not in st.session_state: st.session_state.gallery = []
 if "canvas_reset_counter" not in st.session_state: st.session_state.canvas_reset_counter = 0
 if "current_svg" not in st.session_state: st.session_state.current_svg = ""
+if "tool_choice" not in st.session_state: st.session_state.tool_choice = "pencil"
+if "stroke_width_val" not in st.session_state: st.session_state.stroke_width_val = 3
 
 # ==========================================
-# 2. 側邊欄：設定、上傳與畫廊
+# 2. 側邊欄：設定與權限
 # ==========================================
 with st.sidebar:
     st.header("🔑 設定與權限")
     api_key = st.text_input("輸入你的 API Key:", type="password")
-    st.link_button("👉 取得免費 API Key", "https://aistudio.google.com/app/apikey")
+    st.link_button("👉 取得免費 API Key", "[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)")
     
     st.divider()
     st.header("🖼️ 畫布尺寸設定")
@@ -120,17 +107,13 @@ with st.sidebar:
     uploaded_ref = st.file_uploader("上傳你的靈感參考圖", type=["png", "jpg", "jpeg"])
 
     st.divider()
-    st.header("🛠️ 你的畫板工具")
-    drawing_mode = st.radio("畫筆模式：", ["freedraw", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦")
-    stroke_width = st.slider("筆觸粗細：", 1, 20, 3)
-    
     if st.button("🗑️ 完全清除塗鴉板", use_container_width=True):
         st.session_state.canvas_reset_counter += 1
         st.rerun()
 
     st.divider()
     st.header("🚀 最終行動")
-    # 🚀 這裡移除了示範按鈕，只保留出圖按鈕
+    enable_watermark = st.checkbox("🏷️ 在成品加上浮水印", value=True)
     generate_btn = st.button("✨ 最終具現化 (Imagen 4)", type="primary", use_container_width=True)
 
     if st.session_state.gallery:
@@ -156,9 +139,15 @@ with col_chat:
             system_instruction = """
             你是一位充滿熱情、地位平等的「場景繪師」。你正與一位搭檔（使用者）共同構思一個視覺傑作。
             你的目標是透過輕鬆、專業且像好朋友般的聊天，與搭檔磨合出最完美的畫面。並且完全使用繁體中文。
-            ... (保留原始人格描述) ...
+
+            你的溝通準則：
+            1. **平等協作**：不要像老師一樣下指令。改用「我覺得...」、「我們試試看...」等口吻。
+            2. **多模態觀察**：你會仔細看搭檔傳來的塗鴉，並針對視覺內容給出具體建議。
+            3. **視覺專家的直覺**：自然地提到構圖或光影的建議。
+            4. **節奏掌控**：每次回覆只拋出一個點子討論。
+            5. **共同守護**：在出圖前，確保雙方都對這個「共同結晶」感到興奮。
             """
-            st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。我正在看空白畫布，你有什麼好點子嗎？不管是哪種模糊的感覺都可以，我們一起來把那個場景生出來！"}]
+            st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。你有什麼好點子嗎？不管是哪種模糊的感覺都可以，我們一起來把場景生出來！"}]
             st.session_state.persona = system_instruction
             st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中", "光影": "討論中", "風格": "討論中"}
 
@@ -168,7 +157,7 @@ with col_chat:
             s_cols[i].caption(f"**{k}**")
             s_cols[i].write(f"`{v}`")
 
-        chat_placeholder = st.container(height=450)
+        chat_placeholder = st.container(height=400)
         with chat_placeholder:
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.markdown(msg["content"])
@@ -182,24 +171,32 @@ with col_canvas:
     if st.session_state.get("current_svg"):
         render_svg_animation(st.session_state.current_svg)
     else:
-        st.info("點擊下方按鈕，我會用線條現場勾勒給你看。")
+        st.info("點擊下方按鈕，我會現場勾勒線條給你看。")
     
-    # 🚀 要求：將「請繪師示範構圖」移到示範區正下方
     draw_sketch_btn = st.button("🖌️ 請繪師示範構圖 (免額度)", use_container_width=True)
-        
     st.divider()
     
     st.markdown("#### ✍️ 你的專屬塗鴉板")
+    # 工具邏輯修正：橡皮擦變白筆
+    color = "#000000" if st.session_state.tool_choice == "pencil" else "#ffffff"
+    width = st.session_state.stroke_width_val if st.session_state.tool_choice == "pencil" else st.session_state.stroke_width_val + 10
+    
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
-        stroke_width=stroke_width, stroke_color="#000000",
+        stroke_width=width, stroke_color=color,
         background_color="#ffffff", 
-        background_image=None, 
         update_streamlit=True,
-        height=400, width=400, drawing_mode=drawing_mode,
+        height=400, width=400, drawing_mode="freedraw",
         key=f"main_canvas_{st.session_state.canvas_reset_counter}",
     )
     send_drawing_btn = st.button("📤 傳送我的塗鴉給繪師", use_container_width=True)
+
+    # 🚀 畫板工具移到這裡，橫向排列且無標題
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.radio("工具：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice", horizontal=True)
+    with c2:
+        st.slider("粗細：", 1, 30, 3, key="stroke_width_val")
 
 # ==========================================
 # 4. 邏輯處理
@@ -211,13 +208,12 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
     else:
         current_parts.append({"text": "（搭檔傳送了一張塗鴉草稿，請看圖給予建議）"})
     
-    if include_canvas and canvas_result is not None and canvas_result.image_data is not None:
+    if include_canvas and canvas_result and canvas_result.image_data is not None:
         if np.any(canvas_result.image_data[:, :, 3] > 0):
             white_bg = Image.new("RGB", (400, 400), (255, 255, 255))
             canvas_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
             white_bg.paste(canvas_img, (0, 0), canvas_img)
-            buf = io.BytesIO()
-            white_bg.save(buf, format="JPEG")
+            buf = io.BytesIO(); white_bg.save(buf, format="JPEG")
             current_parts.append({"inline_data": {"mime_type": "image/jpeg", "data": buf.getvalue()}})
             
     if uploaded_ref:
@@ -235,13 +231,12 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                 full_contents = []
                 for m in st.session_state.messages[:-1]:
                     role = "user" if m["role"] == "user" else "model"
-                    clean_text = m["content"].replace("【已傳送塗鴉板畫面】", "我畫了一張草圖給你參考。")
+                    clean_text = m["content"].replace("【已傳送塗鴉板畫面】", "我畫了一張草圖。")
                     full_contents.append({"role": role, "parts": [{"text": clean_text}]})
                 full_contents.append({"role": "user", "parts": current_parts})
 
                 resp = client.models.generate_content(
-                    model='gemini-3-flash-preview',
-                    contents=full_contents,
+                    model='gemini-3-flash-preview', contents=full_contents,
                     config=types.GenerateContentConfig(system_instruction=st.session_state.persona, temperature=0.7)
                 )
                 ai_reply = resp.text
@@ -252,18 +247,15 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
             except Exception as e: st.error(f"對話錯誤：{e}")
 
 if api_key:
-    if prompt:
-        send_message_to_ai(client, prompt, include_canvas=False)
+    if prompt: send_message_to_ai(client, prompt, include_canvas=False)
+    if send_drawing_btn: send_message_to_ai(client, "", include_canvas=True)
     
-    if send_drawing_btn:
-        send_message_to_ai(client, "", include_canvas=True)
-
     if draw_sketch_btn:
         with st.spinner("繪師正在勾勒軌跡..."):
             hist = "\n".join([m['content'] for m in st.session_state.messages])
             svg_req = client.models.generate_content(
                 model='gemini-3-pro-preview',
-                contents=f"生成 400x400 純 SVG 簡單線條構圖。對話：{hist}"
+                contents=f"生成 400x400 純 SVG 簡單線條構圖。只回傳 <svg> 代碼。對話：{hist}"
             )
             st.session_state.current_svg = svg_req.text
             st.rerun()
@@ -271,15 +263,21 @@ if api_key:
     if generate_btn:
         with st.spinner("✨ Imagen 4 具現化中..."):
             try:
+                # 動態長寬比
+                ratio = "9:16" if orientation == "直式" else "16:9"
+                if device_type == "平板": ratio = "3:4" if orientation == "直式" else "4:3"
+                
                 chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
                 p_req = client.models.generate_content(model='gemini-3-pro-preview', contents=f"提煉英文 Imagen 4 指令：{chat_hist}")
-                img_res = client.models.generate_images(model='imagen-4.0-generate-001', prompt=p_req.text, config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="1:1"))
+                img_res = client.models.generate_images(model='imagen-4.0-generate-001', prompt=p_req.text, config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=ratio))
+                
                 if img_res.generated_images:
                     raw_bytes = img_res.generated_images[0].image.image_bytes
-                    marked_img = add_watermark(Image.open(io.BytesIO(raw_bytes)))
-                    buf = io.BytesIO(); marked_img.save(buf, format="JPEG")
-                    st.session_state.gallery.append({"image": marked_img, "image_bytes": buf.getvalue()})
+                    final_img = Image.open(io.BytesIO(raw_bytes))
+                    if enable_watermark: final_img = add_watermark(final_img)
+                    buf = io.BytesIO(); final_img.save(buf, format="JPEG")
+                    st.session_state.gallery.append({"image": final_img, "image_bytes": buf.getvalue()})
                     with chat_placeholder:
-                        st.image(marked_img, caption="我們的共同傑作！")
-                        st.download_button("⬇️ 下載圖片", data=buf.getvalue(), file_name="art.jpg", key="dl_main")
+                        st.image(final_img, caption="我們的共同傑作！")
+                        st.download_button("⬇️ 下載", data=buf.getvalue(), file_name="art.jpg", key="dl_main")
             except Exception as e: st.error(f"出圖失敗：{e}")
