@@ -153,6 +153,7 @@ with col_canvas:
     st.divider()
     
     # 🚀 要求 3：將側邊欄的畫板工具移動到塗鴉版下方
+    st.markdown("#### 🛠️ 畫板工具")
     col_tools1, col_tools2 = st.columns([1, 2])
     with col_tools1:
         # 使用 key 綁定 session_state，讓上方的畫板能讀取到狀態
