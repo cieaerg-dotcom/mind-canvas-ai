@@ -8,7 +8,7 @@ if svg_match:
         # 抹除代碼塊
         text = re.sub(svg_pattern, "", text)
     
-    return text.strip()
+return text.strip()
 
 def add_watermark(image, text="Mind Canvas AI"):
     img = image.copy().convert("RGB")
