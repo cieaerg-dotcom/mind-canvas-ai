@@ -238,6 +238,12 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                     model='gemini-3-flash-preview', contents=full_contents,
                     config=types.GenerateContentConfig(system_instruction=st.session_state.persona, temperature=0.7)
                 )
+                # --- [START] 2026 視覺轉換攔截補丁 ---
+                import re
+                ai_reply_raw = resp.text
+                # 偵測並提取 SVG 代碼塊
+                svg_pattern = r"
+                http://googleusercontent.com/immersive_entry_chip/0
                 ai_reply = resp.text
                 st.markdown(ai_reply)
                 st.session_state.messages.append({"role": "assistant", "content": ai_reply})
