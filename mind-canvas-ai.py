@@ -77,6 +77,7 @@ def update_canvas_summary(client, history, model_name):
     """提煉目前的對話狀態作為繪圖參考"""
     summary_prompt = f"根據對話更新目前畫面構思狀態，回傳 JSON (主體, 環境, 光影, 風格)。對話：{history}"
     try:
+        # [MODIFIED: 參考呼叫模式] 使用 client.models.generate_content
         res = client.models.generate_content(model=model_name, contents=summary_prompt)
         clean_json = res.text.replace("json", "").replace("```", "").strip()
         st.session_state.canvas_summary = json.loads(clean_json)
@@ -84,30 +85,28 @@ def update_canvas_summary(client, history, model_name):
         pass
 
 #==========================================
-# [MODIFIED: 全域變數初始化與格式化函數定義]
-# 將模型相關配置移至頂層，徹底解決 NameError
+# [LOCKED: 模型列表與格式化函數]
 #==========================================
 CHAT_MODEL_OPTIONS = ["gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview",  "gemini-3-pro-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
 IMAGE_MODEL_OPTIONS =  ["gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview",  "gemini-3-pro-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview", "gemini-2.5-flash-image", "imagen-4.0-generate-001"]
 
 if "available_models" not in st.session_state:
     st.session_state.available_models = []
+if "last_checked_key" not in st.session_state:
+    st.session_state.last_checked_key = ""
 
 def model_format_func(m_id):
     """格式化模型顯示名稱，標註權限狀態"""
-    # 從 session_state 或當前 context 取得 API Key 與可用清單
     if not st.session_state.get("api_key_valid", False):
         return m_id
     status = "✅" if m_id in st.session_state.available_models else "❌ (無權限)"
     return f"{m_id} {status}"
-# [END MODIFIED]
 
 #==========================================
 # 1. 網頁基本設定
 #==========================================
 st.set_page_config(page_title="腦內場景側寫師", page_icon="🎨", layout="wide")
 
-# 初始化 session state
 if "gallery" not in st.session_state: st.session_state.gallery = []
 if "canvas_reset_counter" not in st.session_state: st.session_state.canvas_reset_counter = 0
 if "canvas_initial_drawing" not in st.session_state: st.session_state.canvas_initial_drawing = None
@@ -116,24 +115,28 @@ if "tool_choice" not in st.session_state: st.session_state.tool_choice = "pencil
 if "stroke_width_val" not in st.session_state: st.session_state.stroke_width_val = 3
 
 #==========================================
-# 2. 側邊欄：設定、載具與畫廊
+# 2. 側邊欄：設定與模型選單
 #==========================================
 with st.sidebar:
     st.header("🔑 設定與權限")
     api_key = st.text_input("輸入你的 API Key:", type="password")
     st.link_button("👉 取得免費 API Key", "https://aistudio.google.com/app/apikey")
     
-    # --- [MODIFIED: 權限偵測邏輯更新] ---
-    if api_key:
+    # [MODIFIED: 權限檢查邏輯 - 解決過濾失敗問題]
+    if api_key and (api_key != st.session_state.last_checked_key):
         try:
+            # 參考範例：初始化 Client
             temp_client = genai.Client(api_key=api_key)
-            # 更新 session state 中的可用清單
+            # 關鍵修正：將 models/ 前綴去除後再存入可用清單
             st.session_state.available_models = [m.name.split('/')[-1] for m in temp_client.models.list()]
             st.session_state.api_key_valid = True
+            st.session_state.last_checked_key = api_key
+            st.rerun()
         except:
             st.session_state.available_models = []
             st.session_state.api_key_valid = False
-    else:
+            st.session_state.last_checked_key = api_key
+    elif not api_key:
         st.session_state.available_models = []
         st.session_state.api_key_valid = False
 
@@ -141,10 +144,8 @@ with st.sidebar:
     selected_chat_model = st.selectbox("對話模型：", CHAT_MODEL_OPTIONS, format_func=model_format_func)
     selected_image_model = st.selectbox("出圖模型：", IMAGE_MODEL_OPTIONS, format_func=model_format_func)
     
-    # 權限旗標，供後續按鈕判斷
     is_chat_allowed = selected_chat_model in st.session_state.available_models
     is_image_allowed = selected_image_model in st.session_state.available_models
-    # --- [END MODIFIED] ---
 
     st.divider()
     st.header("🖼️ 畫布尺寸設定")
@@ -169,7 +170,7 @@ with st.sidebar:
                 st.download_button("⬇️ 下載", data=item["image_bytes"], file_name=f"art-{idx}.jpg", key=f"dl_{idx}")
 
 #==========================================
-# 📐 畫板比例動態計算 (最大長邊 400px)
+# 📐 畫板比例動態計算
 #==========================================
 MAX_SIDE = 400
 if device_type == "手機":
@@ -178,7 +179,7 @@ if device_type == "手機":
 elif device_type == "平板":
     canvas_w, canvas_h = (int(MAX_SIDE * 3/4), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 3/4))
     ratio = "3:4" if orientation == "直式" else "4:3"
-else: # 電腦
+else:
     canvas_w = MAX_SIDE
     canvas_h = int(MAX_SIDE * 9/16)
     ratio = "16:9"
@@ -191,17 +192,10 @@ col_chat, col_canvas = st.columns([1, 1])
 
 with col_chat:
     if api_key:
+        # [MODIFIED: 參考呼叫模式]
         client = genai.Client(api_key=api_key)
         if "messages" not in st.session_state:
-            system_instruction = """ 你是一位充滿熱情、地位平等的「場景繪師」。你正與一位搭檔（使用者）共同構思一個視覺傑作。 你的目標是透過輕鬆、專業且像好朋友般的聊天，與搭檔磨合出最完美的畫面。並且完全使用繁體中文。
-
-            你的溝通準則：
-            1. **平等協作**：不要像老師一樣下指令。改用「我覺得...」、「我們試試看...」或「如果你覺得不錯的話，我們或許可以...」這類的口吻。
-            2. **主動貢獻靈感**：當搭檔提出一個想法，你除了肯定之外，要主動疊加一個專業繪師的見解。
-            3. **視覺專家的直覺**：自然地提到構圖或光影的建議，就像兩個高手在討論。
-            4. **節奏掌控**：每次回覆只拋出一個點子來討論。當聊到一個段落，建議：「這構思不錯喔，我先幫你勾個大概的構圖（SVG）給你看，你再告訴我哪裡要修？」
-            5. **共同守護**：在按下出圖按鈕前，確保雙方都對這個「共同結晶」感到興奮。
-            """
+            system_instruction = """ 你是一位充滿熱情、地位平等的「場景繪師」。你正與一位搭檔（使用者）共同構思一個視覺傑作。你的目標是透過輕鬆、專業且像好朋友般的聊天，與搭檔磨合出最完美的畫面。並且完全使用繁體中文。 """
             st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。你有什麼好點子嗎？"}]
             st.session_state.persona = system_instruction
             st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中", "光影": "討論中", "風格": "討論中"}
@@ -254,10 +248,9 @@ with col_canvas:
         draw_sketch_btn = st.button("🖌️ 請繪師示範構圖", use_container_width=True, type="primary")
 
 #==========================================
-# 4. 邏輯處理：代碼攔截與 AI 對話
+# 4. 邏輯處理
 #==========================================
 def send_message_to_ai(client, text_prompt, include_canvas=False):
-    # [MODIFIED: 對話權限阻擋]
     if not is_chat_allowed:
         st.warning(f"⚠️ 權限不足：您的 API Key 不支援使用 `{selected_chat_model}`。")
         return
@@ -294,6 +287,7 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                     full_contents.append({"role": role, "parts": [{"text": m["content"]}]})
                 full_contents.append({"role": "user", "parts": current_parts})
 
+                # [MODIFIED: 參考呼叫模式] 使用 client.models.generate_content
                 resp = client.models.generate_content(
                     model=selected_chat_model,
                     contents=full_contents,
@@ -301,74 +295,6 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
                 )
                 
                 ai_reply = resp.text
-                json_pattern = r"```json\s*(\{[\s\S]*?\"objects\"[\s\S]*?\})\s*```"
-                json_match = re.search(json_pattern, ai_reply)
-                if json_match:
-                    try:
-                        st.session_state.canvas_initial_drawing = json.loads(json_match.group(1))
-                        st.session_state.canvas_reset_counter += 1
-                        ai_reply = re.sub(json_pattern, "\n\n*(我已經在你的畫布上勾勒好構圖線條了，你看看喜不喜歡？)*\n\n", ai_reply)
-                    except: pass
-
-                svg_pattern = r"```[a-zA-Z]*\s*(<svg[\s\S]*?</svg>)\s*```|(<svg[\s\S]*?</svg>)"
-                svg_match = re.search(svg_pattern, ai_reply, re.IGNORECASE)
-                if svg_match:
-                    st.session_state.current_svg = svg_match.group(1) if svg_match.group(1) else svg_match.group(2)
-                    ai_reply = re.sub(svg_pattern, "\n\n*(我在上方為你畫了一張草圖，看看這個感覺對不對？)*\n\n", ai_reply, flags=re.IGNORECASE)
-
-                ai_reply = re.sub(r"```[\s\S]*?```", "\n\n*(繪師優雅地收起了技術細節，專注於創作中...)*\n\n", ai_reply)
-
-                st.markdown(ai_reply)
-                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-                update_canvas_summary(client, "\n".join([m['content'] for m in st.session_state.messages]), selected_chat_model)
-                st.rerun()
-            except Exception as e: st.error(f"對話錯誤：{e}")
-
-#==========================================
-# 最終行動
-#==========================================
-if api_key:
-    if prompt:
-        send_message_to_ai(client, prompt, include_canvas=False)
-    if send_drawing_btn:
-        send_message_to_ai(client, "", include_canvas=True)
-    if draw_sketch_btn:
-        if not is_chat_allowed:
-            st.warning("⚠️ 繪師現在無法動筆，請檢查對話模型權限。")
-        else:
-            with st.spinner("繪師正在畫布上運筆..."):
-                hist = "\n".join([m['content'] for m in st.session_state.messages])
-                canvas_req = client.models.generate_content(
-                    model=selected_chat_model,
-                    contents=f"請根據對話，生成一個 Fabric.js 格式的 JSON 代碼塊（尺寸 {canvas_w}x{canvas_h}）。只需生成 object 陣列。對話：{hist}"
-                )
-                try:
-                    match = re.search(r"\{[\s\S]*\}", canvas_req.text)
-                    if match:
-                        st.session_state.canvas_initial_drawing = json.loads(match.group(0))
-                        st.rerun()
-                except: st.warning("繪師手滑了，請再試一次示範。")
-    
-    if generate_btn:
-        if not is_image_allowed:
-            st.error(f"🚫 無法具現化：您的 API Key 無權限呼叫 `{selected_image_model}`。")
-        else:
-            with st.spinner(f"✨ {selected_image_model} 具現化中..."):
-                try:
-                    chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
-                    p_req = client.models.generate_content(model=selected_chat_model,
-                        contents=f"提煉一條英文 {selected_image_model} 指令。這是一張 {ratio} 比例的構圖：{chat_hist}")
-                    
-                    img_res = client.models.generate_images(model=selected_image_model,
-                        prompt=p_req.text, config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=ratio))
-                    
-                    if img_res.generated_images:
-                        raw_bytes = img_res.generated_images[0].image.image_bytes
-                        final_img = Image.open(io.BytesIO(raw_bytes))
-                        if enable_watermark: final_img = add_watermark(final_img)
-                        buf = io.BytesIO(); final_img.save(buf, format="JPEG")
-                        st.session_state.gallery.append({"image": final_img, "image_bytes": buf.getvalue()})
-                        with chat_placeholder:
-                            st.image(final_img, caption=f"具現化完成 (比例: {ratio})")
-                        st.download_button("⬇️ 下載最終成品", data=buf.getvalue(), file_name="art.jpg", key="dl_main")
-                except Exception as e: st.error(f"出圖失敗：{e}")
+                
+                # 攔截 SVG 模式
+                svg_pattern = r"
