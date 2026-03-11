@@ -128,9 +128,10 @@ elif device_type == "平板":
     canvas_w, canvas_h = (int(MAX_SIDE * 3/4), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 3/4))
     ratio = "3:4" if orientation == "直式" else "4:3"
 else: # 電腦 
-    canvas_w, canvas_h = (int(MAX_SIDE * 16/9), MAX_SIDE) if orientation == "直式" else (MAX_SIDE, int(MAX_SIDE * 9/16))
-    ratio = "9:16" if orientation == "直式" else "9:16"
-
+    # 鎖定為橫式尺寸 (16:9)
+    canvas_w = MAX_SIDE           # 寬度設為最大值 (400)
+    canvas_h = int(MAX_SIDE * 9/16) # 高度設為比例縮減 (225)
+    ratio = "16:9"                # 比例永遠為 16:9
 # ==========================================
 # 3. 主頁面佈局
 # ==========================================
