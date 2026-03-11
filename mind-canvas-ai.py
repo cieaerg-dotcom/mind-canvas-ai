@@ -137,7 +137,7 @@ with st.sidebar:
         st.session_state.available_models = []
         st.session_state.api_key_valid = False
 
-    st.subheader("🤖 模型配置")
+    st.subheader("選擇可用模型")
     selected_chat_model = st.selectbox("對話模型：", CHAT_MODEL_OPTIONS, format_func=model_format_func)
     selected_image_model = st.selectbox("出圖模型：", IMAGE_MODEL_OPTIONS, format_func=model_format_func)
     
