@@ -94,26 +94,21 @@ with st.sidebar:
     st.header("🔑 設定與權限")
     api_key = st.text_input("輸入你的 API Key:", type="password")
     st.link_button("👉 取得免費 API Key", "[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)")
-    
     st.divider()
     st.header("🖼️ 畫布尺寸設定")
     device_type = st.selectbox("載具類型：", ["手機", "平板", "電腦"])
     orientation = st.radio("方向：", ["直式", "橫式"])
-    
     st.divider()
     st.header("📂 參考圖上傳")
     uploaded_ref = st.file_uploader("上傳你的靈感參考圖", type=["png", "jpg", "jpeg"])
-
     st.divider()
     if st.button("🗑️ 完全清除塗鴉板", use_container_width=True):
         st.session_state.canvas_reset_counter += 1
         st.rerun()
-
     st.divider()
     st.header("🚀 最終行動")
     enable_watermark = st.checkbox("🏷️ 在成品加上浮水印", value=True)
     generate_btn = st.button("✨ 最終具現化 (Imagen 4)", type="primary", use_container_width=True)
-
     if st.session_state.gallery:
         st.divider()
         st.header("📜 歷史畫廊")
@@ -172,7 +167,6 @@ with col_canvas:
     
     draw_sketch_btn = st.button("🖌️ 請繪師示範構圖 (免額度)", use_container_width=True)
     st.divider()
-    
     st.markdown("#### ✍️ 你的專屬塗鴉板")
     # 🚀 邏輯修正：確保工具列的值先被讀取，再餵給畫板
     c_tool = st.session_state.tool_choice
@@ -189,14 +183,14 @@ with col_canvas:
         height=400, width=400, drawing_mode="freedraw",
         key=f"main_canvas_{st.session_state.canvas_reset_counter}",
     )
-    send_drawing_btn = st.button("📤 傳送我的塗鴉給繪師", use_container_width=True)
-
     # 🚀 畫板工具放在下方
     col_t1, col_t2 = st.columns([1, 1])
     with col_t1:
         st.radio("工具：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice", horizontal=True)
     with col_t2:
         st.slider("粗細：", 1, 30, 3, key="stroke_width_val")
+
+    send_drawing_btn = st.button("📤 傳送我的塗鴉給繪師", use_container_width=True)
 
 # ==========================================
 # 4. 邏輯處理 (其餘不變)
