@@ -106,6 +106,10 @@ if "current_svg" not in st.session_state: st.session_state.current_svg = ""
 # 2. 側邊欄：設定、上傳與畫廊
 # ==========================================
 with st.sidebar:
+
+    api_key = st.text_input("🔑 API Key:", type="password")
+    st.link_button("👉 點我取得免費 API Key", "https://aistudio.google.com/app/apikey")
+    
     st.header("🖼️ 畫布尺寸設定")
     device_type = st.selectbox("載具類型：", ["手機", "平板", "電腦"])
     orientation = st.radio("方向：", ["直式", "橫式"])
@@ -143,10 +147,6 @@ with st.sidebar:
 st.title("🎨 腦內場景側寫師：協作畫室")
 
 col_chat, col_canvas = st.columns([1, 1])
-
-with col_chat:
-    api_key = st.text_input("🔑 API Key:", type="password")
-    st.link_button("👉 點我取得免費 API Key", "https://aistudio.google.com/app/apikey")
     
     if api_key:
         client = genai.Client(api_key=api_key)
