@@ -102,9 +102,6 @@ with st.sidebar:
     st.header("📂 參考圖上傳")
     uploaded_ref = st.file_uploader("上傳你的靈感參考圖", type=["png", "jpg", "jpeg"])
     st.divider()
-    if st.button("🗑️ 完全清除塗鴉板", use_container_width=True):
-        st.session_state.canvas_reset_counter += 1
-        st.rerun()
     st.divider()
     st.header("🚀 最終行動")
     enable_watermark = st.checkbox("🏷️ 在成品加上浮水印", value=True)
