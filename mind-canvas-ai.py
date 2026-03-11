@@ -8,6 +8,7 @@ import json
 import base64
 import numpy as np
 import streamlit.components.v1 as components
+import re
 
 # ==========================================
 # 🚀 2026 終極無敵補丁：Base64 繞過法 (雲端專用)
@@ -30,6 +31,10 @@ st_image.image_to_url = bulletproof_image_to_url
 # ==========================================
 # 0. 核心工具函數
 # ==========================================
+def clean_ai_message(text):
+    """🚀 攔截 SVG 代碼，更新到畫板，並從對話中移除"""
+    svg_pattern = r'
+    
 def add_watermark(image, text="Mind Canvas AI"):
     img = image.copy().convert("RGB")
     draw = ImageDraw.Draw(img)
