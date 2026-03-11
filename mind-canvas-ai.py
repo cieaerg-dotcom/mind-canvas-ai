@@ -7,7 +7,6 @@ if svg_match:
             st.session_state.current_svg = inner_svg_code.group(0)
         # 抹除代碼塊
         text = re.sub(svg_pattern, "", text)
-    
 return text.strip()
 
 def add_watermark(image, text="Mind Canvas AI"):
@@ -78,22 +77,35 @@ if "last_api_key" not in st.session_state: st.session_state.last_api_key = ""
 with st.sidebar:
     st.header("🔑 設定與權限")
     api_key = st.text_input("輸入你的 API Key:", type="password")
-    st.link_button("👉 取得免費 API Key", "[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)")
+    st.link_button("👉 取得免費 API Key", "https://aistudio.google.com/app/apikey")
     
-    # 🚀 新增：當輸入 API Key 時，驗證並取得可用模型清單
-    if api_key and api_key != st.session_state.last_api_key:
-        with st.spinner("驗證金鑰與讀取權限中..."):
-            try:
-                temp_client = genai.Client(api_key=api_key)
-                models_info = temp_client.models.list()
-                # 取得可用模型名稱，過濾掉 'models/' 前綴以方便比對
-                st.session_state.available_models = [m.name.replace("models/", "") for m in models_info]
-                st.session_state.api_key_valid = True
-                st.session_state.last_api_key = api_key
-            except Exception as e:
-                st.session_state.api_key_valid = False
-                st.session_state.available_models = []
-                st.error("API Key 驗證失敗，請確認金鑰正確。")
+    # [MODIFIED] 新增模型選擇與權限檢查邏輯
+    available_models = []
+    if api_key:
+        try:
+            # 初始化臨時客戶端進行權限預檢
+            temp_client = genai.Client(api_key=api_key)
+            for m in temp_client.models.list():
+                available_models.append(m.name.split('/')[-1])
+        except:
+            pass
+
+    chat_options = ["gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.1-pro-preview"]
+    image_options = ["gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.1-pro-preview", "imagen-4.0-generate-001"]
+
+    def model_format_func(m_id):
+        if not api_key: return m_id
+        status = "✅" if m_id in available_models else "❌ (無權限)"
+        return f"{m_id} {status}"
+
+    st.subheader("🤖 模型配置")
+    selected_chat_model = st.selectbox("對話模型：", chat_options, format_func=model_format_func)
+    selected_image_model = st.selectbox("出圖模型：", image_options, format_func=model_format_func)
+    
+    # 權限旗標，用於後續邏輯阻擋
+    is_chat_allowed = selected_chat_model in available_models if api_key else False
+    is_image_allowed = selected_image_model in available_models if api_key else False
+    # [END MODIFIED]
 
     st.divider()
     
