@@ -10,12 +10,13 @@ import numpy as np
 import streamlit.components.v1 as components
 
 # ==========================================
-# 🚀 2026 終極無敵補丁：Base64 繞過法
-# 徹底解決 Streamlit 內部 image_to_url 的版本相容性問題
+# 🚀 2026 終極無敵補丁：Base64 繞過法 (雲端專用)
+# 徹底解決線上版 image_to_url 崩潰的問題
 # ==========================================
 import streamlit.elements.image as st_image
 
 def bulletproof_image_to_url(data, *args, **kwargs):
+    # 直接繞過 Streamlit 內部管理器，將圖片轉為 Base64 字串
     if isinstance(data, Image.Image):
         try:
             buf = io.BytesIO()
@@ -26,7 +27,7 @@ def bulletproof_image_to_url(data, *args, **kwargs):
             return ""
     return ""
 
-# 強制覆蓋核心函數，確保畫板組件不崩潰
+# 強制覆蓋，阻斷組件與不穩定核心的連結
 st_image.image_to_url = bulletproof_image_to_url
 
 # ==========================================
@@ -37,7 +38,6 @@ def add_watermark(image, text="Mind Canvas AI"):
     draw = ImageDraw.Draw(img)
     font_size = int(img.width * 0.025)
     try:
-        # macOS/Linux 通用字體路徑嘗試
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
     except:
         font = ImageFont.load_default()
@@ -56,11 +56,8 @@ def render_svg_animation(svg_content):
     <div style="display: flex; justify-content: center; background: #fafafa; padding: 10px; border-radius: 10px; border: 1px solid #ddd;">
         <style>
             svg path, svg circle, svg rect, svg line, svg polyline, svg polygon {{
-                fill: none !important;
-                stroke: #333 !important;
-                stroke-width: 2 !important;
-                stroke-dasharray: 2000;
-                stroke-dashoffset: 2000;
+                fill: none !important; stroke: #333 !important; stroke-width: 2 !important;
+                stroke-dasharray: 2000; stroke-dashoffset: 2000;
                 animation: draw 3s ease-in-out forwards;
             }}
             @keyframes draw {{ to {{ stroke-dashoffset: 0; }} }}
@@ -86,11 +83,12 @@ st.set_page_config(page_title="腦內場景側寫師", page_icon="🎨", layout=
 if "gallery" not in st.session_state: st.session_state.gallery = []
 if "canvas_reset_counter" not in st.session_state: st.session_state.canvas_reset_counter = 0
 if "current_svg" not in st.session_state: st.session_state.current_svg = ""
+# 確保工具狀態初始值存在
 if "tool_choice" not in st.session_state: st.session_state.tool_choice = "pencil"
 if "stroke_width_val" not in st.session_state: st.session_state.stroke_width_val = 3
 
 # ==========================================
-# 2. 側邊欄：設定與權限
+# 2. 側邊欄：設定、上傳與畫廊
 # ==========================================
 with st.sidebar:
     st.header("🔑 設定與權限")
@@ -134,20 +132,19 @@ col_chat, col_canvas = st.columns([1, 1])
 with col_chat:
     if api_key:
         client = genai.Client(api_key=api_key)
-        
         if "messages" not in st.session_state:
             system_instruction = """
             你是一位充滿熱情、地位平等的「場景繪師」。你正與一位搭檔（使用者）共同構思一個視覺傑作。
             你的目標是透過輕鬆、專業且像好朋友般的聊天，與搭檔磨合出最完美的畫面。並且完全使用繁體中文。
 
             你的溝通準則：
-            1. **平等協作**：不要像老師一樣下指令。改用「我覺得...」、「我們試試看...」等口吻。
-            2. **多模態觀察**：你會仔細看搭檔傳來的塗鴉，並針對視覺內容給出具體建議。
-            3. **視覺專家的直覺**：自然地提到構圖或光影的建議。
-            4. **節奏掌控**：每次回覆只拋出一個點子討論。
-            5. **共同守護**：在出圖前，確保雙方都對這個「共同結晶」感到興奮。
+            1. **平等協作**：不要像老師一樣下指令。改用「我覺得...」、「我們試試看...」或「如果你覺得不錯的話，我們或許可以...」這類的口吻。
+            2. **主動貢獻靈感**：當搭檔提出一個想法，你除了肯定之外，要主動疊加一個專業繪師的見解。
+            3. **視覺專家的直覺**：自然地提到構圖或光影的建議，就像兩個高手在討論。
+            4. **節奏掌控**：每次回覆只拋出一個點子來討論。當聊到一個段落，建議：「這構思不錯喔，我先幫你勾個大概的構圖（SVG）給你看，你再告訴我哪裡要修？」
+            5. **共同守護**：在按下出圖按鈕前，確保雙方都對這個「共同結晶」感到興奮。
             """
-            st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。你有什麼好點子嗎？不管是哪種模糊的感覺都可以，我們一起來把場景生出來！"}]
+            st.session_state.messages = [{"role": "assistant", "content": "嘿！你來了 🎨。你有什麼好點子嗎？"}]
             st.session_state.persona = system_instruction
             st.session_state.canvas_summary = {"主體": "討論中", "環境": "討論中", "光影": "討論中", "風格": "討論中"}
 
@@ -177,13 +174,16 @@ with col_canvas:
     st.divider()
     
     st.markdown("#### ✍️ 你的專屬塗鴉板")
-    # 工具邏輯修正：橡皮擦變白筆
-    color = "#000000" if st.session_state.tool_choice == "pencil" else "#ffffff"
-    width = st.session_state.stroke_width_val if st.session_state.tool_choice == "pencil" else st.session_state.stroke_width_val + 10
+    # 🚀 邏輯修正：確保工具列的值先被讀取，再餵給畫板
+    c_tool = st.session_state.tool_choice
+    c_width = st.session_state.stroke_width_val
+    
+    color = "#000000" if c_tool == "pencil" else "#ffffff"
+    final_width = c_width if c_tool == "pencil" else c_width + 10
     
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
-        stroke_width=width, stroke_color=color,
+        stroke_width=final_width, stroke_color=color,
         background_color="#ffffff", 
         update_streamlit=True,
         height=400, width=400, drawing_mode="freedraw",
@@ -191,15 +191,15 @@ with col_canvas:
     )
     send_drawing_btn = st.button("📤 傳送我的塗鴉給繪師", use_container_width=True)
 
-    # 🚀 畫板工具移到這裡，橫向排列且無標題
-    c1, c2 = st.columns([1, 1])
-    with c1:
+    # 🚀 畫板工具放在下方
+    col_t1, col_t2 = st.columns([1, 1])
+    with col_t1:
         st.radio("工具：", ["pencil", "eraser"], format_func=lambda x: "🖊️ 鉛筆" if x=="pencil" else "🧽 橡皮擦", key="tool_choice", horizontal=True)
-    with c2:
+    with col_t2:
         st.slider("粗細：", 1, 30, 3, key="stroke_width_val")
 
 # ==========================================
-# 4. 邏輯處理
+# 4. 邏輯處理 (其餘不變)
 # ==========================================
 def send_message_to_ai(client, text_prompt, include_canvas=False):
     current_parts = []
@@ -249,7 +249,6 @@ def send_message_to_ai(client, text_prompt, include_canvas=False):
 if api_key:
     if prompt: send_message_to_ai(client, prompt, include_canvas=False)
     if send_drawing_btn: send_message_to_ai(client, "", include_canvas=True)
-    
     if draw_sketch_btn:
         with st.spinner("繪師正在勾勒軌跡..."):
             hist = "\n".join([m['content'] for m in st.session_state.messages])
@@ -263,14 +262,11 @@ if api_key:
     if generate_btn:
         with st.spinner("✨ Imagen 4 具現化中..."):
             try:
-                # 動態長寬比
                 ratio = "9:16" if orientation == "直式" else "16:9"
                 if device_type == "平板": ratio = "3:4" if orientation == "直式" else "4:3"
-                
                 chat_hist = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
                 p_req = client.models.generate_content(model='gemini-3-pro-preview', contents=f"提煉英文 Imagen 4 指令：{chat_hist}")
                 img_res = client.models.generate_images(model='imagen-4.0-generate-001', prompt=p_req.text, config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=ratio))
-                
                 if img_res.generated_images:
                     raw_bytes = img_res.generated_images[0].image.image_bytes
                     final_img = Image.open(io.BytesIO(raw_bytes))
