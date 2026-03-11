@@ -54,7 +54,9 @@ def render_svg_animation(svg_content, h):
     """渲染具有繪製動畫效果的 SVG"""
     if not svg_content:
         return
-    clean_svg = svg_content.replace("json", "").replace("svg", "").replace("```", "").strip()
+    # 精準移除 markdown 標記，嚴禁單獨替換 "svg" 字串以免破壞 <svg> 標籤
+    clean_svg = svg_content.replace("```svg\n", "").replace("```svg", "").replace("```", "").strip()
+    # ------------------
     if "<svg" in clean_svg:
         clean_svg = clean_svg.replace("<svg", '<svg style="max-width:100%; height:auto;"')
 
