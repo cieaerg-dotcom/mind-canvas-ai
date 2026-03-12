@@ -160,7 +160,6 @@ with st.sidebar:
             with st.expander(f"作品 {len(st.session_state.gallery) - idx}"):
                 st.image(item["image"], use_container_width=True)
                 st.download_button("⬇️ 下載", data=item["image_bytes"], file_name=f"art-{idx}.jpg", key=f"dl_{idx}")
-
 #==========================================
 # 📐 畫板比例動態計算
 #==========================================
